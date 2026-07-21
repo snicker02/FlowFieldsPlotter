@@ -281,6 +281,19 @@
           <button data-v="vortex">Vortex</button>
           <button data-v="moire">Moir&eacute;</button>
           <button data-v="dipole">Dipole</button>
+          <button data-v="potential">Flow</button>
+          <button data-v="ripple">Ripple</button>
+          <button data-v="clifford">Attractor</button>
+          <button data-v="worley">Cells</button>
+          <button data-v="galaxy">Galaxy</button>
+          <button data-v="ridge">Ridge</button>
+          <button data-v="orbit">Orbit</button>
+          <button data-v="saddle">Saddle</button>
+          <button data-v="phyllo">Sunflower</button>
+          <button data-v="street">Street</button>
+          <button data-v="grid">Grid</button>
+          <button data-v="weave">Weave</button>
+          <button data-v="truchet">Truchet</button>
         </div>
       </div>
       <div class="row">
@@ -557,6 +570,39 @@ function makeField(o,noise){
     waves.push({dx:Math.cos(th),dy:Math.sin(th),f:S*(0.5+0.9*Math.abs(R(k+3,10))),ph:R(k+3,11)*TAU});}
   const jcx=-0.8, jcy=0.156, jWin=3.0/(0.5+S*0.25); // Julia constant + zoom
 
+  // --- new fields: potential flow / ripple / clifford / worley / galaxy / ridge ---
+  const cN=clamp((o.octaves|0)+1,2,6), cyl=[];
+  for(let k=0;k<cN;k++)cyl.push({x:0.5+0.4*R(k+13,12),y:0.5+0.4*R(k+13,13),
+    m:0.006*(0.6+Math.abs(R(k+13,14)))});                       // doublets (cylinders)
+  const eN=clamp((o.octaves|0)+1,2,6), emit=[];
+  for(let k=0;k<eN;k++)emit.push({x:0.5+0.42*R(k+21,15),y:0.5+0.42*R(k+21,16),ph:R(k+21,17)*TAU});
+  const rk=TAU*S*0.6;                                            // ripple wavenumber ~ scale
+  const ca=1.4+1.1*R(2,18), cb=1.4+1.1*R(3,19), cc=0.3+1.2*R(4,20), cd=0.3+1.2*R(5,21); // clifford
+  const wN=clamp((o.octaves|0)+4,5,14), feats=[];
+  for(let k=0;k<wN;k++)feats.push({x:0.5+0.45*R(k+31,22),y:0.5+0.45*R(k+31,23)}); // worley sites
+  const gpitch=(R(6,24)>=0?1:-1)*(1.2+2.0*Math.abs(R(6,25)));    // log-spiral tightness+handedness
+  function ridged(x,y){let a=1,f=1,sum=0,nm=0;for(let k=0;k<o.octaves;k++){let n=1-Math.abs(noise(x*f,y*f));n*=n;sum+=a*n;nm+=a;a*=0.5;f*=2;}return sum/nm;}
+
+  // --- more fields: orbit / saddle / phyllotaxis / vortex street ---
+  const oN=clamp((o.octaves|0)+1,2,6), masses=[];
+  for(let k=0;k<oN;k++)masses.push({x:0.5+0.4*R(k+41,26),y:0.5+0.4*R(k+41,27),
+    m:0.5+0.9*Math.abs(R(k+41,28)), s:(R(k+41,29)>=0?1:-1)});        // attractor + swirl
+  const sN=clamp((o.octaves|0)+1,2,6), sads=[];
+  for(let k=0;k<sN;k++){const th=R(k+51,30)*Math.PI;
+    sads.push({x:0.5+0.4*R(k+51,31),y:0.5+0.4*R(k+51,32),c:Math.cos(th),s:Math.sin(th),
+      st:(R(k+51,33)>=0?1:-1)*(0.6+0.6*Math.abs(R(k+51,34)))});}    // hyperbolic strain pts
+  const fibs=[[5,8],[8,13],[13,21]], fp=fibs[(Math.abs(R(7,35))*3|0)%3];
+  const pp=fp[0], qq=fp[1];
+  const ka=6+S*1.1+4*Math.abs(R(7,36)), kb=6+S*1.1+4*Math.abs(R(7,37));  // parastichy winding
+  const stAng=R(8,38)*0.6, sc=Math.cos(stAng), ss=Math.sin(stAng);
+  const street=[], stN=7, gap=0.16, off=0.06;                        // von Karman street
+  for(let k=0;k<stN;k++)for(const rj of [0,1]){
+    const al=(k-(stN-1)/2)*gap+(rj?gap*0.5:0), pe=rj?off:-off;
+    street.push({x:0.5+al*sc-pe*ss, y:0.5+al*ss+pe*sc, s:rj?1:-1});
+  }
+  const gcHard=Math.max(2,Math.round(S*1.5));          // cell count for grid/weave/truchet
+  const hard=(o.type==='grid'||o.type==='weave'||o.type==='truchet');
+
   return function(u,v){
     // domain warp: displace the sample coordinate for ALL field types
     if(o.warp>0){
@@ -605,11 +651,84 @@ function makeField(o,noise){
         for(const w of waves){const ph=TAU*w.f*(u*w.dx+v*w.dy)+w.ph,d=-Math.sin(ph)*TAU*w.f;gx+=d*w.dx;gy+=d*w.dy;}
         a=Math.atan2(gy,gx)+HP;break;
       }
+      case 'potential':{
+        // uniform stream psi=v plus doublets; velocity = (d psi/dv, -d psi/du)
+        const e=0.002;
+        const psi=(x,y)=>{let s=y;for(const c of cyl){const dx=x-c.x,dy=y-c.y,r2=dx*dx+dy*dy+soft;s-=c.m*dy/r2;}return s;};
+        const dpu=(psi(u+e,v)-psi(u-e,v))/(2*e);
+        const dpv=(psi(u,v+e)-psi(u,v-e))/(2*e);
+        a=Math.atan2(-dpu,dpv);break;
+      }
+      case 'ripple':{
+        // gradient of summed circular waves, rotated 90 deg -> follow crests
+        const e=0.002;let hL=0,hR=0,hD=0,hU=0;
+        for(const p of emit){let dx,dy,r;
+          dx=u-e-p.x;dy=v-p.y;r=Math.sqrt(dx*dx+dy*dy)+1e-4;hL+=Math.sin(rk*r+p.ph)/(1+3*r);
+          dx=u+e-p.x;dy=v-p.y;r=Math.sqrt(dx*dx+dy*dy)+1e-4;hR+=Math.sin(rk*r+p.ph)/(1+3*r);
+          dx=u-p.x;dy=v-e-p.y;r=Math.sqrt(dx*dx+dy*dy)+1e-4;hD+=Math.sin(rk*r+p.ph)/(1+3*r);
+          dx=u-p.x;dy=v+e-p.y;r=Math.sqrt(dx*dx+dy*dy)+1e-4;hU+=Math.sin(rk*r+p.ph)/(1+3*r);}
+        a=Math.atan2((hU-hD)/(2*e),(hR-hL)/(2*e))+HP;break;
+      }
+      case 'clifford':{
+        const X=(u-0.5)*4,Y=(v-0.5)*4;
+        a=Math.atan2(Math.sin(cb*X)+cd*Math.cos(cb*Y), Math.sin(ca*Y)+cc*Math.cos(ca*X));break;
+      }
+      case 'worley':{
+        let b1=1e9,bx=0,by=0;
+        for(const p of feats){const dx=u-p.x,dy=v-p.y,d2=dx*dx+dy*dy;if(d2<b1){b1=d2;bx=dx;by=dy;}}
+        a=Math.atan2(by,bx)+HP;break; // circulate within nearest cell
+      }
+      case 'galaxy':{
+        const dx=u-0.5,dy=v-0.5,r=Math.hypot(dx,dy)+1e-4;
+        a=Math.atan2(dy,dx)+HP+gpitch*Math.log(r);break;
+      }
+      case 'ridge':
+        a=ridged(u*S,v*S)*TAU*2;break;
+      case 'orbit':{
+        // attraction toward each mass + tangential swirl -> spiral sinks
+        let vx=0,vy=0;
+        for(const p of masses){const dx=u-p.x,dy=v-p.y,r2=dx*dx+dy*dy+soft,inv=p.m/(r2*Math.sqrt(r2));
+          vx+=(-dx - dy*p.s*0.7)*inv; vy+=(-dy + dx*p.s*0.7)*inv;}
+        a=Math.atan2(vy,vx);break;
+      }
+      case 'saddle':{
+        // superposed hyperbolic stagnation points (rotate in, strain, rotate back)
+        let vx=0,vy=0;
+        for(const p of sads){const dx=u-p.x,dy=v-p.y,rx=p.c*dx+p.s*dy,ry=-p.s*dx+p.c*dy,
+          hx=rx*p.st,hy=-ry*p.st; vx+=p.c*hx-p.s*hy; vy+=p.s*hx+p.c*hy;}
+        a=Math.atan2(vy,vx);break;
+      }
+      case 'phyllo':{
+        // gradient of two Fibonacci parastichy waves -> sunflower spiral arms
+        const e=0.002;
+        const h=(x,y)=>{const dx=x-0.5,dy=y-0.5,r=Math.hypot(dx,dy)+1e-4,th=Math.atan2(dy,dx);
+          return Math.cos(pp*th-ka*r)+Math.cos(qq*th-kb*r);};
+        const gx=(h(u+e,v)-h(u-e,v))/(2*e), gy=(h(u,v+e)-h(u,v-e))/(2*e);
+        a=Math.atan2(gy,gx)+HP;break;
+      }
+      case 'street':{
+        let vx=0,vy=0;
+        for(const p of street){const dx=u-p.x,dy=v-p.y,r2=dx*dx+dy*dy+soft,w=p.s/r2;vx-=dy*w;vy+=dx*w;}
+        a=Math.atan2(vy,vx);break;
+      }
+      case 'grid':
+        // snap smooth noise to nearest 90 deg -> horizontal/vertical blocks
+        a=Math.round(F(u,v)*TAU/HP)*HP;break;
+      case 'weave':{
+        // checkerboard: alternate horizontal / vertical cells -> basket grid
+        const cx=Math.floor(u*gcHard), cy=Math.floor(v*gcHard);
+        a=((cx+cy)&1)?0:HP;break;
+      }
+      case 'truchet':{
+        // per-cell seeded diagonal choice -> herringbone / maze
+        const cx=Math.floor(u*gcHard), cy=Math.floor(v*gcHard);
+        a=(noise(cx*12.9898+1.3, cy*78.233+4.7)>0)?Math.PI/4:-Math.PI/4;break;
+      }
       default: // perlin / simplex fBm
         a=F(u,v)*TAU;break;
     }
-    // universal turbulence: coherent angular perturbation, affects every field
-    if(o.turbulence>0) a += o.turbulence*fbm(u*S*1.3+41.7, v*S*1.3+13.9);
+    // universal turbulence: coherent angular perturbation (skipped for hard-edge fields)
+    if(o.turbulence>0 && !hard) a += o.turbulence*fbm(u*S*1.3+41.7, v*S*1.3+13.9);
     return a+o.rotate;
   };
 }
