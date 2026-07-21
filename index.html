@@ -81,6 +81,16 @@
     background:var(--accent-dim);border-color:var(--accent);color:#eafcff;
     font-weight:600;
   }
+  .filebtn{
+    display:block;text-align:center;background:var(--raised);border:1px dashed var(--line2);
+    color:var(--text);font-size:12px;border-radius:6px;padding:12px 8px;cursor:pointer;transition:.12s;
+  }
+  .filebtn:hover{border-color:var(--accent);color:#fff}
+  .minibtn{
+    background:var(--raised);border:1px solid var(--line2);color:var(--muted);font-size:11px;
+    border-radius:5px;padding:6px 10px;cursor:pointer;transition:.12s;flex:0 0 auto;
+  }
+  .minibtn:hover{border-color:var(--warn);color:var(--text)}
   select{width:100%;cursor:pointer;padding:8px;appearance:none;
     background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),
       linear-gradient(135deg,var(--muted) 50%,transparent 50%);
@@ -164,9 +174,10 @@
 
     <div class="grp">
       <h2>Field source</h2>
-      <div class="seg" id="source">
+      <div class="seg" id="source" style="grid-template-columns:repeat(3,1fr)">
         <button data-v="noise" class="on">Noise</button>
         <button data-v="guides">Draw guides</button>
+        <button data-v="image">Image edges</button>
       </div>
       <div id="guideTools" style="display:none">
         <div class="seg" style="margin-top:10px">
@@ -184,6 +195,37 @@
         <div style="font-family:var(--mono);font-size:10px;color:var(--dim);margin-top:6px">
           Drag on the sheet to draw flow guides.
         </div>
+      </div>
+    </div>
+
+    <div class="grp">
+      <h2>Image</h2>
+      <label for="imgFile" class="filebtn" id="imgLabel">Upload image&hellip;</label>
+      <input type="file" accept="image/*" id="imgFile" style="display:none">
+      <div style="display:flex;align-items:center;gap:8px;margin-top:9px">
+        <div style="flex:1;font-family:var(--mono);font-size:10.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" id="imgName">none</div>
+        <button id="imgClear" class="minibtn">Remove</button>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <label><span class="name">Image scale</span><span class="val" id="imgZoomV"></span></label>
+        <input type="range" id="imgZoom" min="0.4" max="4" step="0.02" value="1">
+      </div>
+      <div class="row">
+        <label><span class="name">Offset X</span><span class="val" id="imgPanXV"></span></label>
+        <input type="range" id="imgPanX" min="-0.5" max="0.5" step="0.005" value="0">
+      </div>
+      <div class="row">
+        <label><span class="name">Offset Y</span><span class="val" id="imgPanYV"></span></label>
+        <input type="range" id="imgPanY" min="-0.5" max="0.5" step="0.005" value="0">
+      </div>
+      <div class="seg" style="grid-template-columns:1fr">
+        <button id="imgReset" class="minibtn" style="width:100%">Reset placement</button>
+      </div>
+      <div class="seg" style="margin-top:10px;grid-template-columns:1fr">
+        <button id="ghostBtn" class="on">Ghost underlay: on</button>
+      </div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--dim);margin-top:8px">
+        Drives <b style="color:var(--muted)">Image edges</b> (direction) and/or <b style="color:var(--muted)">Image</b> density below.
       </div>
     </div>
 
@@ -244,6 +286,25 @@
       <div class="row stepper">
         <input type="text" id="seed" value="42" spellcheck="false">
         <button class="seg" style="flex:0 0 auto;padding:8px 12px" id="reseed">Randomize</button>
+      </div>
+    </div>
+
+    <div class="grp">
+      <h2>Density</h2>
+      <div class="seg" id="densitySource" style="grid-template-columns:repeat(3,1fr)">
+        <button data-v="uniform" class="on">Uniform</button>
+        <button data-v="noise">Noise</button>
+        <button data-v="image">Image</button>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <label><span class="name">Contrast</span><span class="val" id="densconV"></span></label>
+        <input type="range" id="denscon" min="0" max="1" step="0.02" value="0.6">
+      </div>
+      <div class="seg" style="grid-template-columns:1fr">
+        <button id="densInvBtn">Invert (light = dense)</button>
+      </div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--dim);margin-top:8px">
+        Line spacing above sets the sparse (light) end; contrast pulls the dense (dark) end tighter.
       </div>
     </div>
 
@@ -452,9 +513,9 @@ function makeGrid(w,h,cell){
   return{
     add(x,y){b[ciy(y)*cols+cix(x)].push(x,y);},
     tooClose(x,y,d){
-      const d2=d*d,cx=cix(x),cy=ciy(y);
-      for(let oy=-1;oy<=1;oy++){const yy=cy+oy;if(yy<0||yy>=rows)continue;
-        for(let ox=-1;ox<=1;ox++){const xx=cx+ox;if(xx<0||xx>=cols)continue;
+      const d2=d*d,cx=cix(x),cy=ciy(y),rings=((d/cell)|0)+1;
+      for(let oy=-rings;oy<=rings;oy++){const yy=cy+oy;if(yy<0||yy>=rows)continue;
+        for(let ox=-rings;ox<=rings;ox++){const xx=cx+ox;if(xx<0||xx>=cols)continue;
           const bk=b[yy*cols+xx];
           for(let k=0;k<bk.length;k+=2){const dx=bk[k]-x,dy=bk[k+1]-y;if(dx*dx+dy*dy<d2)return true;}
         }}
@@ -481,9 +542,9 @@ function stepRK4(x,y,ang,W,H,h,dir){
    Evenly-spaced streamlines (Jobard & Lefebvre 1997)
    All lengths in the same units as W,H (millimetres here).
    ===================================================================== */
-function generate(cfg, ang){
-  const {W,H,dsep,dtest,step,maxLen,minLen}=cfg;
-  const grid=makeGrid(W,H,dsep);
+function generate(cfg, ang, dsepFn){
+  const {W,H,step,maxLen,minLen,cellSize}=cfg;
+  const grid=makeGrid(W,H,cellSize);
   const lines=[],queue=[];
   const POINT_CAP=600000; let pointCount=0;
   const inB=(x,y)=>x>=0&&x<W&&y>=0&&y<H;
@@ -495,7 +556,7 @@ function generate(cfg, ang){
       for(let s=0;s<maxLen;s++){
         const[nx,ny]=stepRK4(x,y,ang,W,H,step,dir);
         if(!inB(nx,ny))break;
-        if(grid.tooClose(nx,ny,dtest))break;
+        if(grid.tooClose(nx,ny,dsepFn(nx,ny)*0.5))break;
         const dx=nx-x,dy=ny-y;
         if(dx*dx+dy*dy<1e-7)break;
         x=nx;y=ny;loc.push([x,y]);
@@ -511,10 +572,10 @@ function generate(cfg, ang){
     for(let i=0;i<pts.length;i++){
       const a=pts[Math.max(0,i-1)],b=pts[Math.min(pts.length-1,i+1)];
       let tx=b[0]-a[0],ty=b[1]-a[1];const l=Math.hypot(tx,ty)||1;tx/=l;ty/=l;
-      const px=-ty,py=tx;
+      const px=-ty,py=tx, ds=dsepFn(pts[i][0],pts[i][1]);
       for(const sg of[1,-1]){
-        const cx=pts[i][0]+px*dsep*sg,cy=pts[i][1]+py*dsep*sg;
-        if(inB(cx,cy)&&!grid.tooClose(cx,cy,dsep))queue.push(cx,cy);
+        const cx=pts[i][0]+px*ds*sg,cy=pts[i][1]+py*ds*sg;
+        if(inB(cx,cy)&&!grid.tooClose(cx,cy,ds))queue.push(cx,cy);
       }
     }
   }
@@ -523,7 +584,7 @@ function generate(cfg, ang){
   while(queue.length){
     if(++guard>3000000||pointCount>POINT_CAP)break;
     const sy=queue.pop(),sx=queue.pop();
-    if(!inB(sx,sy)||grid.tooClose(sx,sy,dsep))continue;
+    if(!inB(sx,sy)||grid.tooClose(sx,sy,dsepFn(sx,sy)))continue;
     const pts=integrate(sx,sy);
     if(pts.length>=minLen)commit(pts);
     else grid.add(sx,sy);
@@ -591,12 +652,76 @@ function makeGuideField(strokes, W, H, margin, opts){
   };
 }
 
+/* =====================================================================
+   Image sampling: cover-fit an uploaded luminance map onto the drawable
+   area; provides bilinear luminance and an isophote (edge) direction.
+   ===================================================================== */
+function makeSampler(img, W, H, tf){
+  const {lum,sw,sh}=img;
+  const pa=W/H, ia=sw/sh;
+  const zoom=(tf&&tf.zoom)||1, px=(tf&&tf.panX)||0, py=(tf&&tf.panY)||0;
+  let ax=1, ay=1; if(ia>pa) ax=pa/ia; else ay=ia/pa; // cover-fit axis scales
+  function sample(u,v){
+    const iu=0.5+((u-0.5)-px)/zoom*ax, iv=0.5+((v-0.5)-py)/zoom*ay;
+    if(iu<0||iu>1||iv<0||iv>1) return {val:1,inside:false}; // outside image = blank
+    const fx=iu*(sw-1), fy=iv*(sh-1);
+    const x0=fx|0,y0=fy|0,x1=x0+1<sw?x0+1:sw-1,y1=y0+1<sh?y0+1:sh-1;
+    const tx=fx-x0,ty=fy-y0;
+    const a=lum[y0*sw+x0],b=lum[y0*sw+x1],c=lum[y1*sw+x0],d=lum[y1*sw+x1];
+    return {val:(a*(1-tx)+b*tx)*(1-ty)+(c*(1-tx)+d*tx)*ty, inside:true};
+  }
+  const e=1.0/Math.max(sw,sh);
+  function grad(u,v){
+    const c=sample(u,v); if(!c.inside) return {ang:0,mag:0};
+    const r=sample(u+e,v),l=sample(u-e,v),d=sample(u,v+e),t=sample(u,v-e);
+    if(!(r.inside&&l.inside&&d.inside&&t.inside)) return {ang:0,mag:0};
+    const gx=r.val-l.val, gy=d.val-t.val;
+    return {ang:Math.atan2(gy,gx)+Math.PI*0.5, mag:Math.hypot(gx,gy)};
+  }
+  return {lum:(u,v)=>sample(u,v).val, grad};
+}
+
+/* Direction field from an image: flow along isophotes (equal-brightness
+   contours). Flat regions have no reliable edge, so blend toward the noise
+   field there by gradient strength. */
+function makeImageField(sampler, noiseAng, rotate){
+  return function(u,v){
+    const g=sampler.grad(u,v);
+    const w=Math.min(1, g.mag/0.05); // edge confidence
+    const na=noiseAng(u,v);
+    if(w<=0.002) return na;
+    const ia=g.ang+rotate;
+    const c=Math.cos(2*ia)*w+Math.cos(2*na)*(1-w);
+    const s=Math.sin(2*ia)*w+Math.sin(2*na)*(1-w);
+    return Math.atan2(s,c)*0.5;
+  };
+}
+
+/* Separation function: returns local line spacing (mm) at drawable (x,y).
+   dsepMax = sparsest (light), dsepMin = densest (dark). */
+function makeDensityFn(cfg, dNoise, sampler){
+  const {W,H,dsepMin,dsepMax,densitySource,densityInvert}=cfg;
+  const span=dsepMax-dsepMin;
+  const cl=t=>t<0?0:t>1?1:t;
+  if(densitySource==='uniform' || span<=1e-6) return ()=>dsepMax;
+  if(densitySource==='image' && sampler) return (x,y)=>{
+    let t=1-sampler.lum(x/W,y/H); if(densityInvert)t=1-t; // dark => dense
+    return dsepMax-span*cl(t);
+  };
+  return (x,y)=>{ // noise-driven tonal blotches
+    let t=(dNoise(x/W,y/H)+1)*0.5; if(densityInvert)t=1-t;
+    return dsepMax-span*cl(t);
+  };
+}
+
 const $=id=>document.getElementById(id);
 const view=$('view'),ctx=view.getContext('2d');
 
 const state={
   fieldType:'perlin', orient:'portrait', dpi:'300', source:'noise',
-  paperW:210, paperH:297, strokes:[], cur:null,
+  densitySource:'uniform', densityInvert:false, ghost:true,
+  imgZoom:1, imgPanX:0, imgPanY:0,
+  paperW:210, paperH:297, strokes:[], cur:null, img:null,
   lines:[], genMs:0, distMM:0
 };
 
@@ -623,6 +748,7 @@ const S={
   speed:slider('speed',v=>v.toFixed(0)+' mm/s'),
   infl:slider('infl',v=>v.toFixed(0)+' mm'),
   nblend:slider('nblend',v=>v.toFixed(2)),
+  denscon:slider('denscon',v=>v.toFixed(2)),
 };
 const seedEl=$('seed'),inkEl=$('ink'),paperColEl=$('paperCol');
 seedEl.addEventListener('change',scheduleAuto);
@@ -643,6 +769,7 @@ segGroup('fieldType','fieldType');
 segGroup('orient','orient',applyPaper);
 segGroup('dpi','dpi',updateDpiInfo,false); // export res only; no regen
 segGroup('source','source',onSourceChange,false); // handled below
+segGroup('densitySource','densitySource'); // regenerates
 
 function onSourceChange(){
   const g=state.source==='guides';
@@ -650,6 +777,66 @@ function onSourceChange(){
   view.style.cursor=g?'crosshair':'default';
   run();
 }
+
+/* ---- density invert ---- */
+$('densInvBtn').addEventListener('click',()=>{
+  state.densityInvert=!state.densityInvert;
+  $('densInvBtn').classList.toggle('on',state.densityInvert);
+  scheduleAuto();
+});
+
+/* ---- image upload ---- */
+$('imgFile').addEventListener('change',e=>{
+  const f=e.target.files&&e.target.files[0]; if(!f)return;
+  const img=new Image();
+  img.onload=()=>{
+    const maxd=320, sc=Math.min(1,maxd/Math.max(img.width,img.height));
+    const sw=Math.max(2,Math.round(img.width*sc)), sh=Math.max(2,Math.round(img.height*sc));
+    const c=document.createElement('canvas');c.width=sw;c.height=sh;
+    const x=c.getContext('2d',{willReadFrequently:true});
+    x.drawImage(img,0,0,sw,sh);
+    const d=x.getImageData(0,0,sw,sh).data, lum=new Float32Array(sw*sh);
+    for(let i=0;i<sw*sh;i++)lum[i]=(0.2126*d[i*4]+0.7152*d[i*4+1]+0.0722*d[i*4+2])/255;
+    state.img={lum,sw,sh,canvas:c,name:f.name};
+    $('imgName').textContent=f.name+' ('+sw+'\u00d7'+sh+')';
+    URL.revokeObjectURL(img.src);
+    run();
+  };
+  img.onerror=()=>{$('hint').textContent='Could not load that image file.';};
+  img.src=URL.createObjectURL(f);
+});
+$('imgClear').addEventListener('click',()=>{
+  state.img=null; $('imgName').textContent='none'; $('imgFile').value='';
+  run();
+});
+$('ghostBtn').addEventListener('click',()=>{
+  state.ghost=!state.ghost;
+  $('ghostBtn').textContent='Ghost underlay: '+(state.ghost?'on':'off');
+  $('ghostBtn').classList.toggle('on',state.ghost);
+  draw();
+});
+
+/* ---- image placement (scale + offset) ---- */
+const imgUsed=()=>state.img && (state.source==='image' || state.densitySource==='image');
+function imgXform(id,key,fmt){
+  const el=$(id),out=$(id+'V');
+  const upd=()=>{out.textContent=fmt(parseFloat(el.value));};
+  el.addEventListener('input',()=>{
+    state[key]=parseFloat(el.value); upd();
+    draw();                       // ghost follows immediately
+    if(imgUsed()) scheduleAuto(); // regen only if it changes the lines
+  });
+  upd();
+}
+imgXform('imgZoom','imgZoom',v=>v.toFixed(2)+'\u00d7');
+imgXform('imgPanX','imgPanX',v=>(v>=0?'+':'')+v.toFixed(2));
+imgXform('imgPanY','imgPanY',v=>(v>=0?'+':'')+v.toFixed(2));
+$('imgReset').addEventListener('click',()=>{
+  state.imgZoom=1; state.imgPanX=0; state.imgPanY=0;
+  $('imgZoom').value=1; $('imgPanX').value=0; $('imgPanY').value=0;
+  $('imgZoomV').textContent='1.00\u00d7'; $('imgPanXV').textContent='+0.00'; $('imgPanYV').textContent='+0.00';
+  draw(); if(imgUsed()) run();
+});
 
 /* ---- guide drawing ---- */
 function canvasToMM(e){
@@ -744,10 +931,15 @@ function readCfg(){
   const margin=parseFloat(S.margin.value);
   const W=Math.max(10,state.paperW-2*margin);
   const H=Math.max(10,state.paperH-2*margin);
-  const dsep=parseFloat(S.dsep.value);
+  const dsepMax=parseFloat(S.dsep.value);                 // sparse (light) end
+  const contrast=parseFloat(S.denscon.value);
+  const densOn=state.densitySource!=='uniform';
+  const dsepMin=densOn ? Math.max(0.3, dsepMax*(1-0.75*contrast)) : dsepMax;
   let seed=parseInt(seedEl.value,10); if(!Number.isFinite(seed))seed=1;
   return{
-    margin,W,H,dsep,dtest:dsep*0.5,
+    margin,W,H,
+    dsepMin,dsepMax,cellSize:Math.max(0.3,dsepMin),
+    densitySource:state.densitySource, densityInvert:state.densityInvert,
     step:parseFloat(S.step.value),
     maxLen:parseInt(S.maxlen.value,10),
     minLen:parseInt(S.minlen.value,10),
@@ -767,7 +959,14 @@ function readCfg(){
 
 /* ---- generate + measure ---- */
 function run(){
-  // guide mode with nothing drawn yet: clear and prompt
+  // field source = image but no image loaded
+  if(state.source==='image' && !state.img){
+    state.cfg=readCfg(); state.lines=[]; state.genMs=0; state.distMM=0;
+    updateReadout(); draw();
+    $('hint').textContent='Upload an image \u2014 flow will follow its edges (isophotes).';
+    return;
+  }
+  // guide mode with nothing drawn yet
   if(state.source==='guides' && state.strokes.length===0){
     state.cfg=readCfg(); state.lines=[]; state.genMs=0; state.distMM=0;
     updateReadout(); draw();
@@ -775,21 +974,32 @@ function run(){
     return;
   }
   const busy=$('busy');busy.classList.add('show');
-  // let the busy overlay paint before the (sync) heavy work
   requestAnimationFrame(()=>requestAnimationFrame(()=>{
     const cfg=readCfg();state.cfg=cfg;
     const noise=makeNoise(cfg.seed);
     const noiseAng=makeField(cfg.fieldOpts,noise);
-    const ang = state.source==='guides'
-      ? makeGuideField(state.strokes, cfg.W, cfg.H, cfg.margin,
-          {influence:cfg.influence, noiseBlend:cfg.noiseBlend, noiseAng})
-      : noiseAng;
+    // image sampler (shared by image field + image density)
+    const needSampler = state.img &&
+      (state.source==='image' || state.densitySource==='image');
+    const sampler = needSampler ? makeSampler(state.img, cfg.W, cfg.H,
+      {zoom:state.imgZoom, panX:state.imgPanX, panY:state.imgPanY}) : null;
+    // direction field
+    let ang;
+    if(state.source==='image' && sampler)
+      ang=makeImageField(sampler, noiseAng, cfg.fieldOpts.rotate);
+    else if(state.source==='guides')
+      ang=makeGuideField(state.strokes, cfg.W, cfg.H, cfg.margin,
+        {influence:cfg.influence, noiseBlend:cfg.noiseBlend, noiseAng});
+    else ang=noiseAng;
+    // density noise (independent tonal field)
+    const dn=makeNoise(cfg.seed+777);
+    const dNoise=(u,v)=>{let a=1,f=1,s=0,n=0;for(let k=0;k<3;k++){s+=a*dn(u*f*2.6,v*f*2.6);n+=a;a*=0.5;f*=2;}return s/n;};
+    const dsepFn=makeDensityFn(cfg, dNoise, sampler);
+
     const t0=performance.now();
-    const lines=generate(cfg, ang);
+    const lines=generate(cfg, ang, dsepFn);
     state.genMs=performance.now()-t0;
-    // offset streamlines by margin -> paper coordinates (mm)
     state.lines=lines.map(l=>l.map(([x,y])=>[x+cfg.margin,y+cfg.margin]));
-    // pen-down distance
     let d=0;
     for(const l of state.lines)for(let i=1;i<l.length;i++)
       d+=Math.hypot(l[i][0]-l[i-1][0],l[i][1]-l[i-1][1]);
@@ -818,6 +1028,19 @@ function renderStreamlines(){
   bctx.fillStyle=paperColEl.value;
   bctx.fillRect(0,0,buf.width,buf.height);
   const m=state.cfg?state.cfg.margin:parseFloat(S.margin.value);
+  // ghost image underlay (cover-fit to the drawable area, matching sampling)
+  if(state.ghost && state.img){
+    const dx=m*k, dy=m*k, dw=(state.paperW-2*m)*k, dh=(state.paperH-2*m)*k;
+    const ia=state.img.sw/state.img.sh, pa=dw/dh;
+    let ax=1,ay=1; if(ia>pa)ax=pa/ia; else ay=ia/pa;
+    const z=state.imgZoom, wq=z/ax*dw, hq=z/ay*dh;
+    const cxp=dx+dw*(0.5+state.imgPanX), cyp=dy+dh*(0.5+state.imgPanY);
+    bctx.save();
+    bctx.beginPath();bctx.rect(dx,dy,dw,dh);bctx.clip();
+    bctx.globalAlpha=0.16;
+    bctx.drawImage(state.img.canvas, cxp-wq/2, cyp-hq/2, wq, hq);
+    bctx.globalAlpha=1;bctx.restore();
+  }
   drawTicks(bctx,k,m);
   bctx.strokeStyle=inkEl.value;
   bctx.lineWidth=Math.max(0.5,parseFloat(S.penw.value)*k);
