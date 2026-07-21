@@ -39,6 +39,16 @@
   .scroll{overflow-y:auto;flex:1;padding:6px 0 20px}
   .scroll::-webkit-scrollbar{width:9px}
   .scroll::-webkit-scrollbar-thumb{background:var(--line2);border-radius:5px}
+  .tabbar{display:grid;grid-template-columns:repeat(4,1fr);gap:2px;padding:8px 10px;
+    border-bottom:1px solid var(--line);background:var(--panel)}
+  .tabbar button{
+    background:transparent;border:1px solid transparent;color:var(--muted);
+    font-family:var(--sans);font-size:11.5px;font-weight:600;letter-spacing:.03em;
+    padding:8px 4px;border-radius:6px;cursor:pointer;transition:.12s;
+  }
+  .tabbar button:hover{color:var(--text);background:var(--raised)}
+  .tabbar button.on{background:var(--raised);border-color:var(--accent);color:var(--accent)}
+  .sidefoot{flex:0 0 auto;padding:10px 18px;border-top:1px solid var(--line);background:var(--panel)}
   .grp{border-bottom:1px solid var(--line);padding:14px 18px}
   .grp h2{
     margin:0 0 12px;font-size:10px;font-weight:600;letter-spacing:.16em;
@@ -170,9 +180,15 @@
     <h1>Flow Field Plotter</h1>
     <div class="sub">streamline generator &middot; svg for pen plotters</div>
   </div>
+  <div class="tabbar" id="tabbar">
+    <button data-tab="flow" class="on">Flow</button>
+    <button data-tab="color">Color</button>
+    <button data-tab="image">Image</button>
+    <button data-tab="page">Page</button>
+  </div>
   <div class="scroll">
 
-    <div class="grp">
+    <div class="grp" data-tab="flow">
       <h2>Field source</h2>
       <div class="seg" id="source" style="grid-template-columns:repeat(3,1fr)">
         <button data-v="noise" class="on">Noise</button>
@@ -198,7 +214,7 @@
       </div>
     </div>
 
-    <div class="grp">
+    <div class="grp" data-tab="image">
       <h2>Image</h2>
       <label for="imgFile" class="filebtn" id="imgLabel">Upload image&hellip;</label>
       <input type="file" accept="image/*" id="imgFile" style="display:none">
@@ -229,7 +245,7 @@
       </div>
     </div>
 
-    <div class="grp">
+    <div class="grp" data-tab="flow">
       <h2>Field</h2>
       <div class="row">
         <div class="seg four" id="fieldType">
@@ -263,9 +279,16 @@
         <label><span class="name">Rotate</span><span class="val" id="rotV"></span></label>
         <input type="range" id="rot" min="0" max="360" step="1" value="0">
       </div>
+      <div class="row">
+        <label><span class="name">Symmetry</span><span class="val" id="symV"></span></label>
+        <input type="range" id="sym" min="1" max="12" step="1" value="1">
+      </div>
+      <div class="seg" style="grid-template-columns:1fr">
+        <button id="symMirBtn">Mirror (kaleidoscope)</button>
+      </div>
     </div>
 
-    <div class="grp">
+    <div class="grp" data-tab="flow">
       <h2>Streamlines</h2>
       <div class="row">
         <label><span class="name">Line spacing</span><span class="val" id="dsepV"></span></label>
@@ -283,13 +306,17 @@
         <label><span class="name">Min length</span><span class="val" id="minlenV"></span></label>
         <input type="range" id="minlen" min="2" max="60" step="1" value="12">
       </div>
+      <div class="row">
+        <label><span class="name">Opacity</span><span class="val" id="opacityV"></span></label>
+        <input type="range" id="opacity" min="0.1" max="1" step="0.02" value="1">
+      </div>
       <div class="row stepper">
         <input type="text" id="seed" value="42" spellcheck="false">
         <button class="seg" style="flex:0 0 auto;padding:8px 12px" id="reseed">Randomize</button>
       </div>
     </div>
 
-    <div class="grp">
+    <div class="grp" data-tab="flow">
       <h2>Density</h2>
       <div class="seg" id="densitySource" style="grid-template-columns:repeat(3,1fr)">
         <button data-v="uniform" class="on">Uniform</button>
@@ -308,7 +335,7 @@
       </div>
     </div>
 
-    <div class="grp">
+    <div class="grp" data-tab="page">
       <h2>Paper</h2>
       <div class="row">
         <select id="paper">
@@ -329,9 +356,18 @@
         <label><span class="name">Margin</span><span class="val" id="marginV"></span></label>
         <input type="range" id="margin" min="0" max="40" step="1" value="15">
       </div>
+      <div class="row">
+        <label><span class="name">PNG export</span><span class="val" id="dpiInfo"></span></label>
+        <div class="seg four" id="dpi">
+          <button data-v="150">150</button>
+          <button data-v="300" class="on">300</button>
+          <button data-v="600">600</button>
+          <button data-v="1200">1200</button>
+        </div>
+      </div>
     </div>
 
-    <div class="grp">
+    <div class="grp" data-tab="color">
       <h2>Ink</h2>
       <div class="swatchrow">
         <div class="swatch">
@@ -351,18 +387,9 @@
         <label><span class="name">Pen speed</span><span class="val" id="speedV"></span></label>
         <input type="range" id="speed" min="20" max="300" step="5" value="120">
       </div>
-      <div class="row">
-        <label><span class="name">PNG export</span><span class="val" id="dpiInfo"></span></label>
-        <div class="seg four" id="dpi">
-          <button data-v="150">150</button>
-          <button data-v="300" class="on">300</button>
-          <button data-v="600">600</button>
-          <button data-v="1200">1200</button>
-        </div>
-      </div>
     </div>
 
-    <div class="grp">
+    <div class="grp" data-tab="color">
       <h2>Color</h2>
       <div class="seg" id="colorBy" style="grid-template-columns:repeat(3,1fr)">
         <button data-v="solid" class="on">Solid</button>
@@ -374,16 +401,31 @@
       <div class="row" style="margin-top:12px">
         <select id="palette">
           <option value="spectrum">Spectrum</option>
-          <option value="sunset">Sunset</option>
+          <option value="wheel">Color wheel (cyclic)</option>
+          <option value="viridis">Viridis</option>
+          <option value="magma">Magma</option>
+          <option value="fire">Fire</option>
+          <option value="ice">Ice</option>
           <option value="ocean">Ocean</option>
           <option value="forest">Forest</option>
+          <option value="terrain">Terrain</option>
+          <option value="sunset">Sunset</option>
+          <option value="candy">Candy</option>
+          <option value="neon">Neon</option>
+          <option value="copper">Copper</option>
+          <option value="mono">Grayscale</option>
           <option value="ink">Ink tints</option>
         </select>
       </div>
-      <div class="seg" style="grid-template-columns:1fr">
-        <button id="discBtn">Discrete pens: off</button>
-      </div>
       <div class="row">
+        <label><span class="name">Palette cycles</span><span class="val" id="palCyclesV"></span></label>
+        <input type="range" id="palCycles" min="1" max="8" step="1" value="1">
+      </div>
+      <div class="seg" style="grid-template-columns:1fr 1fr">
+        <button id="palRevBtn">Reverse</button>
+        <button id="discBtn">Discrete pens</button>
+      </div>
+      <div class="row" style="margin-top:11px">
         <label><span class="name">Pens</span><span class="val" id="pensV"></span></label>
         <input type="range" id="pens" min="2" max="10" step="1" value="5">
       </div>
@@ -392,11 +434,11 @@
       </div>
     </div>
 
-    <div class="grp" style="border-bottom:none">
-      <div class="seg">
-        <button id="autoBtn" class="on">Auto-draw: on</button>
-        <button id="genBtn" class="on" style="background:var(--accent-dim);border-color:var(--accent);color:#eafcff">Redraw</button>
-      </div>
+  </div>
+  <div class="sidefoot">
+    <div class="seg">
+      <button id="autoBtn" class="on">Auto-draw: on</button>
+      <button id="genBtn" class="on" style="background:var(--accent-dim);border-color:var(--accent);color:#eafcff">Redraw</button>
     </div>
   </div>
 </aside>
@@ -751,6 +793,24 @@ function makeDensityFn(cfg, dNoise, sampler){
   };
 }
 
+/* Kaleidoscope symmetry: fold the query point into one wedge of an n-fold
+   pattern (optionally mirrored). Returns pos() for scalar fields and a dir()
+   wrapper that rotates/reflects the field vector back so flow stays coherent. */
+function makeSymmetry(n, mirror){
+  const wedge=2*Math.PI/n;
+  function fold(u,v){
+    const dx=u-0.5, dy=v-0.5, r=Math.hypot(dx,dy), th=Math.atan2(dy,dx);
+    const k=Math.floor(th/wedge); let local=th-k*wedge; let ref=false;
+    if(mirror && local>wedge/2){ local=wedge-local; ref=true; }
+    return {bu:0.5+r*Math.cos(local), bv:0.5+r*Math.sin(local), k, ref};
+  }
+  return {
+    pos:(u,v)=>{const f=fold(u,v);return [f.bu,f.bv];},
+    dir:fn=>(u,v)=>{const f=fold(u,v);const a=fn(f.bu,f.bv);
+      return f.ref ? ((f.k+1)*wedge - a) : (a + f.k*wedge);}
+  };
+}
+
 const $=id=>document.getElementById(id);
 const view=$('view'),ctx=view.getContext('2d');
 
@@ -759,6 +819,7 @@ const state={
   densitySource:'uniform', densityInvert:false, ghost:true,
   imgZoom:1, imgPanX:0, imgPanY:0,
   colorBy:'solid', palette:'spectrum', discrete:false, pens:5, lineColors:[],
+  palReverse:false, palCycles:1, symN:1, symMirror:false, sym:null, opacity:1,
   paperW:210, paperH:297, strokes:[], cur:null, img:null,
   lines:[], genMs:0, distMM:0
 };
@@ -777,6 +838,7 @@ const S={
   turb:slider('turb',v=>v.toFixed(2)),
   warp:slider('warp',v=>v.toFixed(2)),
   rot:slider('rot',v=>v+'\u00b0'),
+  sym:slider('sym',v=>v==1?'off':v+'-fold'),
   dsep:slider('dsep',v=>v.toFixed(1)+' mm'),
   step:slider('step',v=>v.toFixed(2)+' mm'),
   maxlen:slider('maxlen',v=>v.toFixed(0)),
@@ -812,12 +874,25 @@ segGroup('colorBy','colorBy',recolor,false); // color only; no regen
 $('palette').addEventListener('change',()=>{state.palette=$('palette').value;recolor();});
 $('discBtn').addEventListener('click',()=>{
   state.discrete=!state.discrete;
-  $('discBtn').textContent='Discrete pens: '+(state.discrete?'on':'off');
   $('discBtn').classList.toggle('on',state.discrete);
   recolor();
 });
+$('palRevBtn').addEventListener('click',()=>{
+  state.palReverse=!state.palReverse;
+  $('palRevBtn').classList.toggle('on',state.palReverse);
+  recolor();
+});
+$('symMirBtn').addEventListener('click',()=>{
+  state.symMirror=!state.symMirror;
+  $('symMirBtn').classList.toggle('on',state.symMirror);
+  scheduleAuto();
+});
 (function(){const el=$('pens'),out=$('pensV');const upd=()=>out.textContent=el.value;
   el.addEventListener('input',()=>{state.pens=parseInt(el.value,10);upd();recolor();});upd();})();
+(function(){const el=$('palCycles'),out=$('palCyclesV');const upd=()=>out.textContent=el.value+'\u00d7';
+  el.addEventListener('input',()=>{state.palCycles=parseInt(el.value,10);upd();recolor();});upd();})();
+(function(){const el=$('opacity'),out=$('opacityV');const upd=()=>out.textContent=el.value;
+  el.addEventListener('input',()=>{state.opacity=parseFloat(el.value);upd();draw();});upd();})();
 
 function onSourceChange(){
   const g=state.source==='guides';
@@ -1042,7 +1117,16 @@ function run(){
     // density noise (independent tonal field)
     const dn=makeNoise(cfg.seed+777);
     const dNoise=(u,v)=>{let a=1,f=1,s=0,n=0;for(let k=0;k<3;k++){s+=a*dn(u*f*2.6,v*f*2.6);n+=a;a*=0.5;f*=2;}return s/n;};
-    const dsepFn=makeDensityFn(cfg, dNoise, sampler);
+    const dsepFn0=makeDensityFn(cfg, dNoise, sampler);
+    // kaleidoscope symmetry: fold direction field + density together
+    let dsepFn=dsepFn0;
+    const symN=parseInt($('sym').value,10)||1;
+    if(symN>1){
+      const sym=makeSymmetry(symN, state.symMirror);
+      state.sym=sym;
+      ang=sym.dir(ang);
+      dsepFn=(x,y)=>{const [bu,bv]=sym.pos(x/cfg.W,y/cfg.H);return dsepFn0(bu*cfg.W,bv*cfg.H);};
+    } else state.sym=null;
 
     const t0=performance.now();
     const lines=generate(cfg, ang, dsepFn);
@@ -1083,9 +1167,19 @@ const PALETTE_STOPS={
   sunset:['#2c1a4d','#7b2d8e','#e0559b','#ff9e5e','#ffd76b'].map(hex2rgb),
   ocean:['#04202a','#0a5a6e','#17a2b8','#6fd6c3','#d9f5ec'].map(hex2rgb),
   forest:['#14251a','#2e5a2e','#5a8f3a','#a7c957','#eef7cf'].map(hex2rgb),
+  viridis:['#440154','#414487','#2a788e','#22a884','#7ad151','#fde725'].map(hex2rgb),
+  magma:['#000004','#3b0f70','#8c2981','#de4968','#fe9f6d','#fcfdbf'].map(hex2rgb),
+  ice:['#03045e','#0077b6','#00b4d8','#90e0ef','#caf0f8'].map(hex2rgb),
+  fire:['#000000','#5f0f00','#bf2600','#ff7b00','#ffd500','#fff6b0'].map(hex2rgb),
+  candy:['#ff5d8f','#ff9ebb','#ffc2e2','#a0e7e5','#b4f8c8','#fbe7c6'].map(hex2rgb),
+  copper:['#1a0e0a','#5c3a21','#a86b3c','#e0a96d','#ffe6c7'].map(hex2rgb),
+  neon:['#ff00e6','#7a00ff','#00d4ff','#00ffa3','#eaff00'].map(hex2rgb),
+  terrain:['#2b4162','#0b6e4f','#69a197','#e9c46a','#e76f51','#ffffff'].map(hex2rgb),
+  mono:['#111111','#f2f2f2'].map(hex2rgb),
 };
 function paletteColor(name,t){
   if(name==='spectrum') return hsl2rgb((0.02+t*0.82)*360,0.72,0.52);
+  if(name==='wheel') return hsl2rgb(t*360,0.7,0.55);
   if(name==='ink'){const ink=hex2rgb(inkEl.value),pap=hex2rgb(paperColEl.value),a=0.22+0.78*t;
     return [pap[0]+(ink[0]-pap[0])*a, pap[1]+(ink[1]-pap[1])*a, pap[2]+(ink[2]-pap[2])*a];}
   return lerpStops(PALETTE_STOPS[name]||PALETTE_STOPS.ocean, t);
@@ -1109,9 +1203,11 @@ function computeColors(cfg){
   }
   return state.lines.map(l=>{
     const mid=l[l.length>>1];
+    const fold=(u,v)=>state.sym?state.sym.pos(u,v):[u,v];
     if(mode==='image'){
       if(!sampler)return inkEl.value;
-      let c=sampler.color((mid[0]-cfg.margin)/cfg.W,(mid[1]-cfg.margin)/cfg.H);
+      const [fu,fv]=fold((mid[0]-cfg.margin)/cfg.W,(mid[1]-cfg.margin)/cfg.H);
+      let c=sampler.color(fu,fv);
       if(!c)return inkEl.value;
       if(disc){const q=v=>Math.round(v/255*(pens-1))/(pens-1)*255; c=[q(c[0]),q(c[1]),q(c[2])];}
       return css(c);
@@ -1119,7 +1215,10 @@ function computeColors(cfg){
     let t=0.5;
     if(mode==='direction'){const a=lineDir(l);t=(((a%Math.PI)+Math.PI)%Math.PI)/Math.PI;}
     else if(mode==='position'){t=(Math.atan2(mid[1]-cy,mid[0]-cx)+Math.PI)/(2*Math.PI);}
-    else if(mode==='density'){const span=(cfg.dsepMax-cfg.dsepMin)||1;t=1-(dsepFn(mid[0]-cfg.margin,mid[1]-cfg.margin)-cfg.dsepMin)/span;}
+    else if(mode==='density'){const [fu,fv]=fold((mid[0]-cfg.margin)/cfg.W,(mid[1]-cfg.margin)/cfg.H);const span=(cfg.dsepMax-cfg.dsepMin)||1;t=1-(dsepFn(fu*cfg.W,fv*cfg.H)-cfg.dsepMin)/span;}
+    // palette shaping: cycles then reverse
+    t=(t*state.palCycles)%1; if(t<0)t+=1;
+    if(state.palReverse)t=1-t;
     t=t<0?0:t>1?1:t;
     if(disc)t=(Math.floor(Math.min(pens-1,t*pens))+0.5)/pens;
     return css(paletteColor(state.palette,t));
@@ -1153,6 +1252,7 @@ function renderStreamlines(){
   drawTicks(bctx,k,m);
   bctx.lineWidth=Math.max(0.5,parseFloat(S.penw.value)*k);
   bctx.lineJoin='round';bctx.lineCap='round';
+  bctx.globalAlpha=state.opacity;
   const colors=state.lineColors;
   if(!colors||!colors.length){
     bctx.strokeStyle=inkEl.value;bctx.beginPath();
@@ -1215,7 +1315,7 @@ function buildSVG(){
   const head='<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" '+
     'xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" '+
     'width="'+pw+'mm" height="'+ph+'mm" viewBox="0 0 '+pw+' '+ph+'">\n';
-  const gAttr='fill="none" stroke-width="'+sw+'" stroke-linecap="round" stroke-linejoin="round"';
+  const gAttr='fill="none" stroke-width="'+sw+'" stroke-opacity="'+state.opacity+'" stroke-linecap="round" stroke-linejoin="round"';
   // group lines by color
   const groups=new Map();
   state.lines.forEach((l,i)=>{if(l.length<2)return;const c=colors?colors[i]:inkEl.value;(groups.get(c)||groups.set(c,[]).get(c)).push(l);});
@@ -1254,6 +1354,7 @@ $('pngBtn').addEventListener('click',()=>{
   x.fillStyle=paperColEl.value;x.fillRect(0,0,c.width,c.height);
   x.lineWidth=Math.max(0.5,parseFloat(S.penw.value)*scale);
   x.lineJoin='round';x.lineCap='round';
+  x.globalAlpha=state.opacity;
   const colors=state.lineColors&&state.lineColors.length?state.lineColors:null;
   const groups=new Map();
   state.lines.forEach((l,i)=>{if(l.length<2)return;const col=colors?colors[i]:inkEl.value;(groups.get(col)||groups.set(col,[]).get(col)).push(l);});
@@ -1269,6 +1370,17 @@ $('pngBtn').addEventListener('click',()=>{
     setTimeout(()=>URL.revokeObjectURL(url),1000);
   },'image/png');
 });
+
+/* ---- sidebar tabs ---- */
+const grpEls=Array.from(document.querySelectorAll('.grp[data-tab]'));
+const tabBtns=Array.from(document.querySelectorAll('#tabbar button'));
+function setTab(name){
+  grpEls.forEach(g=>{g.style.display=(g.dataset.tab===name)?'':'none';});
+  tabBtns.forEach(b=>b.classList.toggle('on',b.dataset.tab===name));
+  document.querySelector('.scroll').scrollTop=0;
+}
+tabBtns.forEach(b=>b.addEventListener('click',()=>setTab(b.dataset.tab)));
+setTab('flow');
 
 /* ---- boot ---- */
 applyPaper();
