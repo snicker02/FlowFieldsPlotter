@@ -166,6 +166,30 @@
     padding:6px 18px;font-family:var(--mono);font-size:10px;color:var(--dim);
     border-top:1px solid var(--line);background:var(--mat);
   }
+  /* ---------- custom gradient editor ---------- */
+  .gradbar-wrap{position:relative;height:34px;margin:12px 0 4px;user-select:none;touch-action:none}
+  .gradbar{position:absolute;inset:0;border-radius:5px;border:1px solid var(--line2);cursor:copy;
+    background-image:
+      linear-gradient(45deg,#333 25%,transparent 25%),linear-gradient(-45deg,#333 25%,transparent 25%),
+      linear-gradient(45deg,transparent 75%,#333 75%),linear-gradient(-45deg,transparent 75%,#333 75%);
+    background-size:10px 10px;background-position:0 0,0 5px,5px -5px,-5px 0}
+  .gradbar .fill{position:absolute;inset:0;border-radius:4px}
+  .gradstops{position:absolute;inset:0;pointer-events:none}
+  .gradstop{position:absolute;bottom:-4px;width:13px;height:13px;
+    transform:translateX(-50%) rotate(45deg);border:1.5px solid #e8eef0;
+    box-shadow:0 0 0 1px rgba(0,0,0,.55);border-radius:2px;cursor:grab;pointer-events:auto}
+  .gradstop:active{cursor:grabbing}
+  .gradstop.sel{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent),0 0 7px var(--accent)}
+  .gradctl{display:flex;align-items:center;gap:8px;margin-top:8px}
+  .gradctl input[type=color]{width:30px;height:30px;flex:0 0 auto;padding:0;
+    border:1px solid var(--line2);border-radius:6px;background:none;cursor:pointer}
+  .gradctl input[type=color]:disabled{opacity:.4;cursor:not-allowed}
+  .gradctl .minibtn{flex:1;text-align:center}
+  .gradctl .minibtn:disabled{opacity:.4;cursor:not-allowed;border-color:var(--line2);color:var(--dim)}
+  .gradpresets{display:grid;grid-template-columns:repeat(6,1fr);gap:5px;margin-top:9px}
+  .gradpresets button{height:20px;border-radius:4px;border:1px solid var(--line2);
+    padding:0;cursor:pointer;transition:.12s}
+  .gradpresets button:hover{border-color:var(--accent)}
   @media(max-width:820px){
     body{flex-direction:column;overflow:auto}
     aside{width:100%;flex:none;border-right:none;border-bottom:1px solid var(--line);height:auto}
@@ -400,6 +424,7 @@
       </div>
       <div class="row" style="margin-top:12px">
         <select id="palette">
+          <option value="custom">Custom gradient&hellip;</option>
           <option value="spectrum">Spectrum</option>
           <option value="wheel">Color wheel (cyclic)</option>
           <option value="viridis">Viridis</option>
@@ -416,6 +441,21 @@
           <option value="mono">Grayscale</option>
           <option value="ink">Ink tints</option>
         </select>
+      </div>
+      <div id="gradEdit" style="display:none">
+        <div class="gradbar-wrap">
+          <div class="gradbar" id="gradBar"><div class="fill" id="gradFill"></div></div>
+          <div class="gradstops" id="gradStops"></div>
+        </div>
+        <div class="gradctl">
+          <input type="color" id="stopColor" value="#000000">
+          <button id="stopDel" class="minibtn">Delete stop</button>
+          <button id="gradFlip" class="minibtn">Flip</button>
+        </div>
+        <div class="gradpresets" id="gradPresets"></div>
+        <div style="font-family:var(--mono);font-size:10px;color:var(--dim);margin-top:8px">
+          Click the bar to add a stop &middot; drag to move &middot; select then recolor. Presets load into the editor.
+        </div>
       </div>
       <div class="row">
         <label><span class="name">Palette cycles</span><span class="val" id="palCyclesV"></span></label>
@@ -821,8 +861,30 @@ const state={
   colorBy:'solid', palette:'spectrum', discrete:false, pens:5, lineColors:[],
   palReverse:false, palCycles:1, symN:1, symMirror:false, sym:null, opacity:1,
   paperW:210, paperH:297, strokes:[], cur:null, img:null,
-  lines:[], genMs:0, distMM:0
+  lines:[], genMs:0, distMM:0,
+  customStops:[], selStopId:null
 };
+
+/* ---- custom gradient: seeded stops + arbitrary-position interpolation ---- */
+let stopIdSeq=0;
+const newStop=(pos,color)=>({id:++stopIdSeq, pos, color});
+state.customStops=[newStop(0,'#141e3c'), newStop(0.5,'#e94560'), newStop(1,'#f7d774')];
+state.selStopId=state.customStops[0].id;
+function sortedStops(){ return state.customStops.slice().sort((a,b)=>a.pos-b.pos); }
+function customColor(t){
+  const s=sortedStops();
+  if(t<=s[0].pos) return hex2rgb(s[0].color);
+  const last=s[s.length-1]; if(t>=last.pos) return hex2rgb(last.color);
+  for(let i=0;i<s.length-1;i++){
+    const a=s[i], b=s[i+1];
+    if(t>=a.pos && t<=b.pos){
+      const f=(t-a.pos)/((b.pos-a.pos)||1);
+      const ca=hex2rgb(a.color), cb=hex2rgb(b.color);
+      return [ca[0]+(cb[0]-ca[0])*f, ca[1]+(cb[1]-ca[1])*f, ca[2]+(cb[2]-ca[2])*f];
+    }
+  }
+  return hex2rgb(s[0].color);
+}
 
 // bind a slider to a formatter
 function slider(id,fmt){
@@ -871,7 +933,134 @@ segGroup('dpi','dpi',updateDpiInfo,false); // export res only; no regen
 segGroup('source','source',onSourceChange,false); // handled below
 segGroup('densitySource','densitySource'); // regenerates
 segGroup('colorBy','colorBy',recolor,false); // color only; no regen
-$('palette').addEventListener('change',()=>{state.palette=$('palette').value;recolor();});
+$('palette').addEventListener('change',()=>{
+  state.palette=$('palette').value;
+  $('gradEdit').style.display = state.palette==='custom' ? 'block' : 'none';
+  recolor();
+});
+
+/* =====================================================================
+   Custom gradient editor: draggable stops over a live gradient bar.
+   Feeds paletteColor('custom',t) through the same cycles/reverse/discrete
+   pipeline as every built-in palette.
+   ===================================================================== */
+function rgb2hex(rgb){
+  const h=v=>{const s=Math.max(0,Math.min(255,Math.round(v))).toString(16);return s.length<2?'0'+s:s;};
+  return '#'+h(rgb[0])+h(rgb[1])+h(rgb[2]);
+}
+function gradientCSS(stops){
+  const s=(stops||sortedStops());
+  return 'linear-gradient(to right,'+s.map(p=>p.color+' '+(p.pos*100).toFixed(2)+'%').join(',')+')';
+}
+function gradPosFromEvent(e){
+  const r=$('gradBar').getBoundingClientRect();
+  let p=(e.clientX-r.left)/(r.width||1);
+  return p<0?0:p>1?1:p;
+}
+// full rebuild (stop added/removed/selection changed)
+function renderGradEditor(){
+  $('gradFill').style.background=gradientCSS();
+  const wrap=$('gradStops'); wrap.innerHTML='';
+  for(const s of state.customStops){
+    const el=document.createElement('div');
+    el.className='gradstop'+(s.id===state.selStopId?' sel':'');
+    el.style.left=(s.pos*100)+'%';
+    el.style.background=s.color;
+    el.dataset.id=s.id;
+    wrap.appendChild(el);
+  }
+  syncStopControls();
+}
+// lightweight update during drag / color change (no DOM teardown)
+function updateGradVisual(){
+  $('gradFill').style.background=gradientCSS();
+  for(const el of $('gradStops').children){
+    const s=state.customStops.find(x=>x.id===+el.dataset.id);
+    if(s){el.style.left=(s.pos*100)+'%';el.style.background=s.color;
+      el.classList.toggle('sel',s.id===state.selStopId);}
+  }
+}
+function syncStopControls(){
+  const sel=state.customStops.find(s=>s.id===state.selStopId);
+  const cin=$('stopColor');
+  cin.value=sel?sel.color:'#000000';
+  cin.disabled=!sel;
+  $('stopDel').disabled=!sel || state.customStops.length<=2;
+}
+let recolorRAF=null;
+function scheduleRecolor(){
+  if(recolorRAF)return;
+  recolorRAF=requestAnimationFrame(()=>{recolorRAF=null;recolor();});
+}
+// add a stop by clicking the bar (inherits the gradient's color at that point)
+$('gradBar').addEventListener('pointerdown',e=>{
+  if(e.target.classList.contains('gradstop'))return; // handled by stop layer
+  const p=gradPosFromEvent(e);
+  const s=newStop(p, rgb2hex(customColor(p)));
+  state.customStops.push(s);
+  state.selStopId=s.id;
+  renderGradEditor(); recolor();
+});
+// select + drag stops
+let dragId=null;
+$('gradStops').addEventListener('pointerdown',e=>{
+  const el=e.target.closest('.gradstop'); if(!el)return;
+  dragId=+el.dataset.id; state.selStopId=dragId;
+  updateGradVisual(); syncStopControls();
+  e.preventDefault();
+});
+window.addEventListener('pointermove',e=>{
+  if(dragId==null)return;
+  const s=state.customStops.find(x=>x.id===dragId); if(!s)return;
+  s.pos=gradPosFromEvent(e);
+  updateGradVisual(); scheduleRecolor();
+});
+window.addEventListener('pointerup',()=>{ dragId=null; });
+$('stopColor').addEventListener('input',()=>{
+  const s=state.customStops.find(x=>x.id===state.selStopId); if(!s)return;
+  s.color=$('stopColor').value;
+  updateGradVisual(); scheduleRecolor();
+});
+$('stopDel').addEventListener('click',()=>{
+  if(state.customStops.length<=2)return;
+  state.customStops=state.customStops.filter(s=>s.id!==state.selStopId);
+  state.selStopId=sortedStops()[0].id;
+  renderGradEditor(); recolor();
+});
+$('gradFlip').addEventListener('click',()=>{
+  for(const s of state.customStops)s.pos=1-s.pos;
+  renderGradEditor(); recolor();
+});
+// preset swatches: load an evenly-spaced stop set into the editor
+const GRAD_PRESETS={
+  'Dusk':['#0d1b2a','#415a77','#e0aaff','#ff8fab'],
+  'Ember':['#03071e','#6a040f','#dc2f02','#ffba08','#ffff3f'],
+  'Lagoon':['#012a4a','#2a6f97','#61a5c2','#a9d6e5','#f7fff7'],
+  'Bloom':['#5f0f40','#9a031e','#e36414','#fb8b24','#fff3b0'],
+  'Mint':['#1b2a2f','#0b6e4f','#08a045','#6bd425','#eafccd'],
+  'Grape':['#10002b','#3c096c','#7b2cbf','#c77dff','#e0aaff'],
+  'Slate':['#111418','#2b2f36','#565b63','#9aa1a9','#e8ecef'],
+  'Coral':['#04395e','#0f5c6e','#36827f','#f4a259','#f25c54'],
+  'Aurora':['#011627','#023e5c','#2ec4b6','#cbf3f0','#ff9f1c'],
+  'Rose':['#590d22','#a4133c','#ff4d6d','#ff8fa3','#ffccd5'],
+  'Signal':['#000000','#22223b','#4a4e69','#c9ada7','#f2e9e4'],
+  'Prism':['#ff006e','#fb5607','#ffbe0b','#8338ec','#3a86ff'],
+};
+(function buildPresets(){
+  const wrap=$('gradPresets');
+  for(const [name,cols] of Object.entries(GRAD_PRESETS)){
+    const b=document.createElement('button');
+    b.title=name;
+    b.style.background='linear-gradient(to right,'+cols.join(',')+')';
+    b.addEventListener('click',()=>{
+      const n=cols.length;
+      state.customStops=cols.map((c,i)=>newStop(n>1?i/(n-1):0, c));
+      state.selStopId=state.customStops[0].id;
+      renderGradEditor(); recolor();
+    });
+    wrap.appendChild(b);
+  }
+})();
 $('discBtn').addEventListener('click',()=>{
   state.discrete=!state.discrete;
   $('discBtn').classList.toggle('on',state.discrete);
@@ -1178,6 +1367,7 @@ const PALETTE_STOPS={
   mono:['#111111','#f2f2f2'].map(hex2rgb),
 };
 function paletteColor(name,t){
+  if(name==='custom') return customColor(t);
   if(name==='spectrum') return hsl2rgb((0.02+t*0.82)*360,0.72,0.52);
   if(name==='wheel') return hsl2rgb(t*360,0.7,0.55);
   if(name==='ink'){const ink=hex2rgb(inkEl.value),pap=hex2rgb(paperColEl.value),a=0.22+0.78*t;
@@ -1383,6 +1573,9 @@ tabBtns.forEach(b=>b.addEventListener('click',()=>setTab(b.dataset.tab)));
 setTab('flow');
 
 /* ---- boot ---- */
+$('palette').value=state.palette;                       // keep select in sync with default
+$('gradEdit').style.display = state.palette==='custom' ? 'block' : 'none';
+renderGradEditor();
 applyPaper();
 run();
 </script>
