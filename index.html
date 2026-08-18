@@ -224,6 +224,45 @@
   <div class="scroll">
 
     <div class="grp" data-tab="flow">
+      <h2>Mode</h2>
+      <div class="seg" id="mode" style="grid-template-columns:1fr 1fr">
+        <button data-v="stream" class="on">Streamlines</button>
+        <button data-v="particle">Living particles</button>
+      </div>
+    </div>
+
+    <div class="grp" data-tab="flow" data-mode="particle">
+      <h2>Particles</h2>
+      <div class="seg" style="grid-template-columns:1fr 1fr">
+        <button id="pPlay" class="on">Pause</button>
+        <button id="pReset">Reset</button>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <label><span class="name">Count</span><span class="val" id="pCountV"></span></label>
+        <input type="range" id="pCount" min="500" max="30000" step="500" value="6000">
+      </div>
+      <div class="row">
+        <label><span class="name">Flow speed</span><span class="val" id="pSpeedV"></span></label>
+        <input type="range" id="pSpeed" min="0.05" max="2" step="0.05" value="0.4">
+      </div>
+      <div class="row">
+        <label><span class="name">Trail length</span><span class="val" id="pTrailV"></span></label>
+        <input type="range" id="pTrail" min="0" max="1" step="0.02" value="0.8">
+      </div>
+      <div class="row">
+        <label><span class="name">Lifespan</span><span class="val" id="pLifeV"></span></label>
+        <input type="range" id="pLife" min="20" max="600" step="10" value="160">
+      </div>
+      <div class="seg" style="grid-template-columns:1fr 1fr">
+        <button id="pGlowBtn">Glow (additive)</button>
+        <button id="pRecBtn">Record WebM</button>
+      </div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--dim);margin-top:8px">
+        Particles flow through the same field. Colour follows the Color tab (Direction shifts live; Glow suits dark paper). Trails build on screen &mdash; Record saves WebM, PNG snapshots the frame. SVG is streamline-only. Draw guides in Streamlines mode first.
+      </div>
+    </div>
+
+    <div class="grp" data-tab="flow">
       <h2>Randomize</h2>
       <button id="randAll" class="filebtn" style="border-style:solid;font-weight:600">Randomize unlocked</button>
       <div style="font-family:var(--mono);font-size:10px;color:var(--dim);margin:8px 0 6px">
@@ -383,7 +422,7 @@
       </div>
     </div>
 
-    <div class="grp" data-tab="flow">
+    <div class="grp" data-tab="flow" data-mode="stream">
       <h2>Streamlines</h2>
       <div class="row">
         <label><span class="name">Line spacing</span><span class="val" id="dsepV"></span></label>
@@ -567,7 +606,7 @@
       </div>
     </div>
 
-    <div class="grp" data-tab="color">
+    <div class="grp" data-tab="color" data-mode="stream">
       <h2>Line style</h2>
       <div class="seg" id="smoothMode" style="grid-template-columns:1fr 1fr;margin-bottom:12px">
         <button data-v="off">Raw polyline</button>
@@ -603,10 +642,10 @@
     <div class="busy" id="busy"><span>drawing&hellip;</span></div>
   </div>
   <div class="readout">
-    <div class="stat"><span class="k">Lines</span><span class="v" id="rLines">&mdash;</span></div>
-    <div class="stat accent"><span class="k">Pen-down</span><span class="v" id="rDist">&mdash;</span></div>
-    <div class="stat accent"><span class="k">Est. plot</span><span class="v" id="rTime">&mdash;</span></div>
-    <div class="stat"><span class="k">Gen</span><span class="v" id="rGen">&mdash;</span></div>
+    <div class="stat"><span class="k" id="kLines">Lines</span><span class="v" id="rLines">&mdash;</span></div>
+    <div class="stat accent"><span class="k" id="kDist">Pen-down</span><span class="v" id="rDist">&mdash;</span></div>
+    <div class="stat accent"><span class="k" id="kTime">Est. plot</span><span class="v" id="rTime">&mdash;</span></div>
+    <div class="stat"><span class="k" id="kGen">Gen</span><span class="v" id="rGen">&mdash;</span></div>
     <div class="spacer"></div>
     <div class="exports">
       <button id="pngBtn">PNG</button>
@@ -1083,6 +1122,7 @@ const state={
   paperW:210, paperH:297, strokes:[], cur:null, img:null,
   lines:[], genMs:0, distMM:0,
   field2:'none', widthProfile:'uniform', smoothMode:'curve',
+  mode:'stream', pGlow:false,
   customStops:[], selStopId:null, locks:new Set()
 };
 
@@ -1212,7 +1252,7 @@ $('symMirBtn').addEventListener('click',()=>{
 function onSourceChange(){
   const g=state.source==='guides';
   $('guideTools').style.display=g?'block':'none';
-  view.style.cursor=g?'crosshair':'default';
+  view.style.cursor=(g && state.mode!=='particle')?'crosshair':'default';
   run();
 }
 
@@ -1286,7 +1326,7 @@ function canvasToMM(e){
 let drawing=false;
 view.style.touchAction='none';
 view.addEventListener('pointerdown',e=>{
-  if(state.source!=='guides')return;
+  if(state.source!=='guides' || state.mode==='particle')return;
   drawing=true; try{view.setPointerCapture(e.pointerId);}catch(_){}
   state.cur=[canvasToMM(e)]; compositeGuides();
 });
@@ -1343,7 +1383,8 @@ $('genBtn').addEventListener('click',run);
 
 let autoTimer=null;
 function scheduleAuto(){
-  if(!auto||bulkApply)return;
+  if(bulkApply)return;
+  if(state.mode!=='particle' && !auto)return;
   clearTimeout(autoTimer);
   autoTimer=setTimeout(run,180);
 }
@@ -1360,7 +1401,7 @@ function fitCanvas(){
   view.style.width=w+'px';view.style.height=h+'px';
   view.width=Math.round(w*dpr);view.height=Math.round(h*dpr);
   state.pxPerMM=(w*dpr)/state.paperW;
-  draw();
+  if(state.mode==='particle') pInitCanvas(); else draw();
 }
 window.addEventListener('resize',()=>fitCanvas());
 
@@ -1395,8 +1436,44 @@ function readCfg(){
   };
 }
 
+/* ---- build the direction field + density fn shared by streamlines and
+   particles (fields, second-field blend, image/guide source, symmetry) ---- */
+function buildDirectionField(cfg){
+  const noise=makeNoise(cfg.seed);
+  let noiseAng=makeField(cfg.fieldOpts,noise);
+  if(state.field2 && state.field2!=='none'){
+    const noise2=makeNoise(cfg.seed+9001);
+    const ang2=makeField(Object.assign({},cfg.fieldOpts,{type:state.field2}),noise2);
+    noiseAng=blendAngles(noiseAng, ang2, parseFloat($('fmix').value));
+  }
+  const needSampler = state.img &&
+    (state.source==='image' || state.densitySource==='image' || state.colorBy==='image');
+  const sampler = needSampler ? makeSampler(state.img, cfg.W, cfg.H,
+    {zoom:state.imgZoom, panX:state.imgPanX, panY:state.imgPanY}) : null;
+  let ang;
+  if(state.source==='image' && state.img && sampler)
+    ang=makeImageField(sampler, noiseAng, cfg.fieldOpts.rotate);
+  else if(state.source==='guides' && state.strokes.length)
+    ang=makeGuideField(state.strokes, cfg.W, cfg.H, cfg.margin,
+      {influence:cfg.influence, noiseBlend:cfg.noiseBlend, noiseAng});
+  else ang=noiseAng;
+  const dn=makeNoise(cfg.seed+777);
+  const dNoise=(u,v)=>{let a=1,f=1,s=0,n=0;for(let k=0;k<3;k++){s+=a*dn(u*f*2.6,v*f*2.6);n+=a;a*=0.5;f*=2;}return s/n;};
+  const dsepFn0=makeDensityFn(cfg, dNoise, sampler);
+  let dsepFn=dsepFn0;
+  const symN=parseInt($('sym').value,10)||1;
+  if(symN>1){
+    const sym=makeSymmetry(symN, state.symMirror);
+    state.sym=sym;
+    ang=sym.dir(ang);
+    dsepFn=(x,y)=>{const [bu,bv]=sym.pos(x/cfg.W,y/cfg.H);return dsepFn0(bu*cfg.W,bv*cfg.H);};
+  } else state.sym=null;
+  return {ang, dsepFn, sampler};
+}
+
 /* ---- generate + measure ---- */
 function run(){
+  if(state.mode==='particle') return runParticles();
   // field source = image but no image loaded
   if(state.source==='image' && !state.img){
     state.cfg=readCfg(); state.lines=[]; state.genMs=0; state.distMM=0;
@@ -1414,40 +1491,8 @@ function run(){
   const busy=$('busy');busy.classList.add('show');
   requestAnimationFrame(()=>requestAnimationFrame(()=>{
     const cfg=readCfg();state.cfg=cfg;
-    const noise=makeNoise(cfg.seed);
-    let noiseAng=makeField(cfg.fieldOpts,noise);
-    // optional second field, blended by doubled-angle interpolation
-    if(state.field2 && state.field2!=='none'){
-      const noise2=makeNoise(cfg.seed+9001);
-      const ang2=makeField(Object.assign({},cfg.fieldOpts,{type:state.field2}),noise2);
-      noiseAng=blendAngles(noiseAng, ang2, parseFloat($('fmix').value));
-    }
-    // image sampler (shared by image field + image density)
-    const needSampler = state.img &&
-      (state.source==='image' || state.densitySource==='image');
-    const sampler = needSampler ? makeSampler(state.img, cfg.W, cfg.H,
-      {zoom:state.imgZoom, panX:state.imgPanX, panY:state.imgPanY}) : null;
-    // direction field
-    let ang;
-    if(state.source==='image' && sampler)
-      ang=makeImageField(sampler, noiseAng, cfg.fieldOpts.rotate);
-    else if(state.source==='guides')
-      ang=makeGuideField(state.strokes, cfg.W, cfg.H, cfg.margin,
-        {influence:cfg.influence, noiseBlend:cfg.noiseBlend, noiseAng});
-    else ang=noiseAng;
-    // density noise (independent tonal field)
-    const dn=makeNoise(cfg.seed+777);
-    const dNoise=(u,v)=>{let a=1,f=1,s=0,n=0;for(let k=0;k<3;k++){s+=a*dn(u*f*2.6,v*f*2.6);n+=a;a*=0.5;f*=2;}return s/n;};
-    const dsepFn0=makeDensityFn(cfg, dNoise, sampler);
-    // kaleidoscope symmetry: fold direction field + density together
-    let dsepFn=dsepFn0;
-    const symN=parseInt($('sym').value,10)||1;
-    if(symN>1){
-      const sym=makeSymmetry(symN, state.symMirror);
-      state.sym=sym;
-      ang=sym.dir(ang);
-      dsepFn=(x,y)=>{const [bu,bv]=sym.pos(x/cfg.W,y/cfg.H);return dsepFn0(bu*cfg.W,bv*cfg.H);};
-    } else state.sym=null;
+    const fld=buildDirectionField(cfg);
+    const ang=fld.ang, dsepFn=fld.dsepFn;
 
     const t0=performance.now();
     const lines=generate(cfg, ang, dsepFn);
@@ -1464,6 +1509,14 @@ function run(){
 }
 
 function updateReadout(){
+  if(state.mode==='particle'){
+    $('kLines').textContent='Particles'; $('rLines').textContent=P.n.toLocaleString();
+    $('kDist').textContent='Speed'; $('rDist').innerHTML=(P.live?P.live.speed:0).toFixed(2)+' <small>mm/f</small>';
+    $('kTime').textContent='FPS'; $('rTime').textContent=(P.fps||0).toFixed(0);
+    $('kGen').textContent='Field'; $('rGen').textContent=state.field2!=='none'?state.fieldType+'+':state.fieldType;
+    return;
+  }
+  $('kLines').textContent='Lines'; $('kDist').textContent='Pen-down'; $('kTime').textContent='Est. plot'; $('kGen').textContent='Gen';
   $('rLines').textContent=state.lines.length.toLocaleString();
   $('rDist').innerHTML=(state.distMM/1000).toFixed(1)+' <small>m</small>';
   const secs=state.distMM/parseFloat(S.speed.value);
@@ -1777,6 +1830,14 @@ $('svgBtn').addEventListener('click',()=>{
   download('flowfield-'+seedEl.value+'.svg',buildSVG(),'image/svg+xml');
 });
 $('pngBtn').addEventListener('click',()=>{
+  if(state.mode==='particle'){
+    view.toBlob(b=>{ if(!b){$('hint').textContent='PNG snapshot failed.';return;}
+      const url=URL.createObjectURL(b);const a=document.createElement('a');
+      a.href=url;a.download='flowfield-particles.png';a.click();
+      setTimeout(()=>URL.revokeObjectURL(url),1000);
+    },'image/png');
+    return;
+  }
   if(!state.lines.length)return;
   const scale=effScale(Number(state.dpi)); // px per mm, clamped
   const c=document.createElement('canvas');
@@ -1813,8 +1874,13 @@ $('pngBtn').addEventListener('click',()=>{
 /* ---- sidebar tabs ---- */
 const grpEls=Array.from(document.querySelectorAll('.grp[data-tab]'));
 const tabBtns=Array.from(document.querySelectorAll('#tabbar button'));
+let currentTab='flow';
 function setTab(name){
-  grpEls.forEach(g=>{g.style.display=(g.dataset.tab===name)?'':'none';});
+  currentTab=name;
+  grpEls.forEach(g=>{
+    const md=g.dataset.mode;
+    g.style.display=(g.dataset.tab===name && (!md||md===state.mode))?'':'none';
+  });
   tabBtns.forEach(b=>b.classList.toggle('on',b.dataset.tab===name));
   document.querySelector('.scroll').scrollTop=0;
 }
@@ -2006,6 +2072,8 @@ function serializeState(){
     discrete:state.discrete,pens:state.pens,
     ink:inkEl.value,paperCol:paperColEl.value,penw:g('penw'),speed:g('speed'),
     widthProfile:state.widthProfile,taper:g('taper'),smoothMode:state.smoothMode,
+    mode:state.mode, pGlow:state.pGlow,
+    pCount:g('pCount'),pSpeed:g('pSpeed'),pTrail:g('pTrail'),pLife:g('pLife'),
     orient:state.orient,paper:$('paper').value,margin:g('margin'),dpi:state.dpi,
     ghost:state.ghost,imgZoom:state.imgZoom,imgPanX:state.imgPanX,imgPanY:state.imgPanY,
     infl:g('infl'),nblend:g('nblend'),
@@ -2018,7 +2086,8 @@ function applyState(o){
   bulkApply=true;
   const set=(id,val)=>{const el=$(id); if(el&&val!=null){el.value=val; el.dispatchEvent(new Event('input'));}};
   ['scale','octaves','turb','warp','rot','sym','dsep','step','maxlen','minlen','denscon',
-   'penw','speed','infl','nblend','fmix','taper','margin','opacity','pens','palCycles'].forEach(id=>{ if(o[id]!=null) set(id,o[id]); });
+   'penw','speed','infl','nblend','fmix','taper','margin','opacity','pens','palCycles',
+   'pCount','pSpeed','pTrail','pLife'].forEach(id=>{ if(o[id]!=null) set(id,o[id]); });
   if(o.seed!=null)seedEl.value=o.seed;
   if(o.ink!=null)inkEl.value=o.ink;
   if(o.paperCol!=null)paperColEl.value=o.paperCol;
@@ -2030,6 +2099,8 @@ function applyState(o){
   if(o.dpi!=null)applySeg('dpi',String(o.dpi));
   if(o.widthProfile)applySeg('widthProfile',o.widthProfile);
   if(o.smoothMode)applySeg('smoothMode',o.smoothMode);
+  if(o.mode)applySeg('mode',o.mode);
+  if(o.pGlow!=null){state.pGlow=!!o.pGlow;$('pGlowBtn').classList.toggle('on',!!o.pGlow);}
   applyToggle('discrete',o.discrete,'discBtn');
   applyToggle('palReverse',o.palReverse,'palRevBtn');
   applyToggle('symMirror',o.symMirror,'symMirBtn');
@@ -2044,6 +2115,9 @@ function applyState(o){
   if(Array.isArray(o.stops)&&o.stops.length>=2){state.customStops=o.stops.map(s=>newStop(+s.p,s.c));state.selStopId=state.customStops[0].id;renderGradEditor();}
   if(Array.isArray(o.strokes))state.strokes=o.strokes;
   bulkApply=false;
+  const part=(state.mode==='particle');
+  $('svgBtn').disabled=part; $('svgBtn').style.opacity=part?'0.4':'';
+  setTab(currentTab);
   updateDpiInfo(); applyPaper(); onSourceChange();
 }
 function toLink(){
@@ -2083,6 +2157,151 @@ $('delPreset').addEventListener('click',()=>{
   const name=$('presetSel').value; if(!name)return;
   const m=loadPresetMap(); delete m[name]; savePresetMap(m); refreshPresetList();
   $('hint').textContent='Deleted "'+name+'".';
+});
+
+/* =====================================================================
+   Living particles: advect a swarm through the (fixed) direction field,
+   leaving fading trails. Screen / WebM only.
+   ===================================================================== */
+const P={ x:null,y:null,age:null,life:null,col:null, n:0, baseLife:160,
+  ang:null, dsepFn:null, sampler:null, cfg:null, lut:[], W:1, H:1,
+  live:{speed:0.4,fade:0.06,glow:false}, playing:false, raf:0,
+  fps:0, _ft:0, _fc:0, rec:null, recChunks:null };
+
+function buildLUT(){ const N=64,l=new Array(N); for(let i=0;i<N;i++)l[i]=css(paletteColor(state.palette,i/(N-1))); return l; }
+function shapeIdx(t){
+  t=(t*state.palCycles)%1; if(t<0)t+=1; if(state.palReverse)t=1-t;
+  if(state.discrete){const p=state.pens; t=(Math.floor(Math.min(p-1,t*p))+0.5)/p;}
+  return Math.max(0,Math.min(63,(t*63)|0));
+}
+function particleParams(){
+  return {
+    count:parseInt($('pCount').value,10),
+    speed:parseFloat($('pSpeed').value),
+    fade:0.3-parseFloat($('pTrail').value)*0.29,   // longer trail -> smaller fade alpha
+    life:parseInt($('pLife').value,10),
+    glow:state.pGlow
+  };
+}
+function pAllocate(n){
+  P.n=n; P.x=new Float32Array(n); P.y=new Float32Array(n);
+  P.age=new Uint16Array(n); P.life=new Uint16Array(n); P.col=new Array(n);
+}
+function pSpawn(i,cfg){
+  const x=Math.random()*P.W, y=Math.random()*P.H;
+  P.x[i]=x; P.y[i]=y; P.age[i]=0;
+  P.life[i]=Math.max(8,(0.4+1.2*Math.random())*P.baseLife)|0;
+  const cb=state.colorBy;
+  if(cb==='direction'){ P.col[i]=null; return; }       // per-frame
+  if(cb==='solid'){ P.col[i]=inkEl.value; return; }
+  let u=x/P.W, v=y/P.H;
+  if(state.sym){ const f=state.sym.pos(u,v); u=f[0]; v=f[1]; }
+  if(cb==='position'){ const t=(Math.atan2(v-0.5,u-0.5)+Math.PI)/(2*Math.PI); P.col[i]=P.lut[shapeIdx(t)]; }
+  else if(cb==='density' && P.dsepFn && cfg){ const span=(cfg.dsepMax-cfg.dsepMin)||1; const t=1-(P.dsepFn(u*P.W,v*P.H)-cfg.dsepMin)/span; P.col[i]=P.lut[shapeIdx(t)]; }
+  else if(cb==='image' && P.sampler){ const c=P.sampler.color(u,v); P.col[i]=c?css(c):inkEl.value; }
+  else P.col[i]=inkEl.value;
+}
+function pSpawnAll(cfg){ for(let i=0;i<P.n;i++)pSpawn(i,cfg); }
+function pInitCanvas(){
+  ctx.globalCompositeOperation='source-over'; ctx.globalAlpha=1;
+  ctx.fillStyle=paperColEl.value; ctx.fillRect(0,0,view.width,view.height);
+}
+function pStep(){
+  const g=ctx, W=P.W, H=P.H, k=state.pxPerMM||1, m=P.cfg?P.cfg.margin:0;
+  const sp=P.live.speed, ang=P.ang; if(!ang)return;
+  g.globalCompositeOperation='source-over';
+  g.globalAlpha=P.live.fade; g.fillStyle=paperColEl.value;
+  g.fillRect(0,0,view.width,view.height); g.globalAlpha=1;
+  g.lineWidth=Math.max(0.5, parseFloat(S.penw.value)*k);
+  g.lineCap='round'; g.lineJoin='round';
+  if(P.live.glow) g.globalCompositeOperation='lighter';
+  const cb=state.colorBy, dir=(cb==='direction'), solid=(cb==='solid');
+  const ink=inkEl.value, lut=P.lut, buckets=new Map();
+  for(let i=0;i<P.n;i++){
+    const x=P.x[i], y=P.y[i];
+    const a=ang(x/W, y/H);
+    const nx=x+Math.cos(a)*sp, ny=y+Math.sin(a)*sp;
+    if(P.age[i]>0){
+      let col;
+      if(solid)col=ink;
+      else if(dir){const t=(((a%Math.PI)+Math.PI)%Math.PI)/Math.PI; col=lut[shapeIdx(t)];}
+      else col=P.col[i]||ink;
+      let arr=buckets.get(col); if(!arr){arr=[];buckets.set(col,arr);}
+      arr.push((x+m)*k,(y+m)*k,(nx+m)*k,(ny+m)*k);
+    }
+    P.x[i]=nx; P.y[i]=ny; P.age[i]++;
+    if(P.age[i]>P.life[i] || nx<0||nx>W||ny<0||ny>H) pSpawn(i,P.cfg);
+  }
+  for(const [col,arr] of buckets){
+    g.strokeStyle=col; g.beginPath();
+    for(let j=0;j<arr.length;j+=4){ g.moveTo(arr[j],arr[j+1]); g.lineTo(arr[j+2],arr[j+3]); }
+    g.stroke();
+  }
+  g.globalCompositeOperation='source-over';
+  const now=performance.now(), dt=now-(P._ft||now); P._ft=now;
+  if(dt>0){ const inst=1000/dt; P.fps=P.fps?P.fps*0.9+inst*0.1:inst; }
+  if((++P._fc%30)===0) updateReadout();
+}
+function pLoop(){ if(!P.playing)return; pStep(); P.raf=requestAnimationFrame(pLoop); }
+function togglePlay(on){
+  P.playing = (on!=null)?on:!P.playing;
+  $('pPlay').textContent=P.playing?'Pause':'Play';
+  $('pPlay').classList.toggle('on',P.playing);
+  if(P.playing && state.mode==='particle'){ P._ft=performance.now(); cancelAnimationFrame(P.raf); P.raf=requestAnimationFrame(pLoop); }
+  else cancelAnimationFrame(P.raf);
+}
+function runParticles(){
+  const cfg=readCfg(); state.cfg=cfg;
+  const fld=buildDirectionField(cfg);
+  P.ang=fld.ang; P.dsepFn=fld.dsepFn; P.sampler=fld.sampler; P.cfg=cfg;
+  P.W=cfg.W; P.H=cfg.H; P.lut=buildLUT();
+  const pp=particleParams();
+  P.live={speed:pp.speed, fade:pp.fade, glow:pp.glow}; P.baseLife=pp.life;
+  if(!P.x || P.n!==pp.count){ pAllocate(pp.count); pInitCanvas(); pSpawnAll(cfg); }
+  updateReadout();
+  if(!P.playing) togglePlay(true);
+  if($('hint')) $('hint').textContent='Living particles \u2014 flowing through the field. Record for a WebM clip.';
+}
+function applyMode(){
+  const part=(state.mode==='particle');
+  $('svgBtn').disabled=part; $('svgBtn').style.opacity=part?'0.4':'';
+  view.style.cursor=(!part && state.source==='guides')?'crosshair':'default';
+  setTab(currentTab);
+  if(part){ run(); }
+  else{ togglePlay(false); run(); }
+}
+segGroup('mode','mode',applyMode,false);
+
+// particle sliders (live-apply, no realloc except count)
+(function(){
+  const bind=(id,fmt,apply)=>{const el=$(id),out=$(id+'V');const upd=()=>out.textContent=fmt(parseFloat(el.value));
+    el.addEventListener('input',()=>{upd();apply&&apply();});upd();};
+  bind('pSpeed',v=>v.toFixed(2)+' mm', ()=>{P.live.speed=parseFloat($('pSpeed').value);});
+  bind('pTrail',v=>Math.round(v*100)+'%', ()=>{P.live.fade=0.3-parseFloat($('pTrail').value)*0.29;});
+  bind('pLife',v=>v.toFixed(0)+' f', ()=>{P.baseLife=parseInt($('pLife').value,10);});
+  let cTimer=null;
+  const cEl=$('pCount'),cOut=$('pCountV');const cUpd=()=>cOut.textContent=parseInt(cEl.value,10).toLocaleString();
+  cEl.addEventListener('input',()=>{cUpd();clearTimeout(cTimer);cTimer=setTimeout(()=>{ if(state.mode==='particle') runParticles(); },220);});
+  cUpd();
+})();
+$('pPlay').addEventListener('click',()=>togglePlay());
+$('pReset').addEventListener('click',()=>{ if(state.mode!=='particle')return; pInitCanvas(); pSpawnAll(state.cfg); });
+$('pGlowBtn').addEventListener('click',()=>{
+  state.pGlow=!state.pGlow; $('pGlowBtn').classList.toggle('on',state.pGlow);
+  if(P.live)P.live.glow=state.pGlow;
+});
+$('pRecBtn').addEventListener('click',()=>{
+  if(P.rec){ P.rec.stop(); return; }
+  let stream; try{ stream=view.captureStream(30); }catch(e){ $('hint').textContent='Video recording is not supported in this browser.'; return; }
+  let mime=''; if(window.MediaRecorder){ for(const t of ['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm']){ if(MediaRecorder.isTypeSupported(t)){mime=t;break;} } }
+  try{ P.rec=new MediaRecorder(stream, mime?{mimeType:mime}:undefined); }catch(e){ $('hint').textContent='Video recording is not supported here.'; return; }
+  P.recChunks=[];
+  P.rec.ondataavailable=e=>{ if(e.data&&e.data.size) P.recChunks.push(e.data); };
+  P.rec.onstop=()=>{ const blob=new Blob(P.recChunks,{type:'video/webm'}); download('flowfield-particles.webm',blob,'video/webm');
+    P.rec=null; P.recChunks=null; $('pRecBtn').textContent='Record WebM'; $('pRecBtn').classList.remove('on'); $('hint').textContent='Saved WebM clip.'; };
+  if(!P.playing) togglePlay(true);
+  P.rec.start(); $('pRecBtn').textContent='Stop & save'; $('pRecBtn').classList.add('on');
+  $('hint').textContent='Recording\u2026 click again to stop and save.';
 });
 
 /* ---- boot ---- */
