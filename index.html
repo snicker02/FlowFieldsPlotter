@@ -222,18 +222,20 @@
       background:var(--mat);box-shadow:0 8px 18px -8px rgba(0,0,0,.75)}
     .stage{height:50vh;min-height:240px;padding:0}
     .hint{display:none}
-    /* readout: 2x2 stats, full-width export row */
+    /* readout: stats hidden on mobile; compact full-width export row only */
     .readout{flex-wrap:wrap}
     .readout .spacer{display:none}
-    .readout .stat{flex:1 1 22%;padding:8px 8px;border-top:1px solid var(--line)}
-    .readout .exports{width:100%;padding:8px 12px;gap:10px}
-    .readout .exports button{flex:1;padding:13px 10px;font-size:13px}
+    .readout .stat{display:none}
+    .readout .exports{width:100%;padding:6px 10px;gap:8px}
+    .readout .exports button{flex:1;padding:9px 10px;font-size:12px}
     /* controls flow under the pinned canvas; the page scrolls, not an inner pane */
     aside{width:100%;flex:none;height:auto;border-right:none;border-bottom:none}
     .brand{display:none}
+    /* tab bar pinned right beneath the canvas + export area */
     .tabbar{position:sticky;top:var(--mobTabTop,0);z-index:25}
-    .scroll{overflow:visible;flex:none;padding-bottom:36px}
-    .sidefoot{position:sticky;bottom:0;z-index:24;box-shadow:0 -6px 14px -8px rgba(0,0,0,.7)}
+    .scroll{overflow:visible;flex:none;padding-bottom:24px}
+    /* Auto-draw / Redraw ride at the natural bottom of the controls (not pinned) */
+    .sidefoot{position:static;box-shadow:none}
     /* denser panels, bigger touch targets */
     .grp{padding:13px 15px}
     .seg button{padding:11px 6px}
@@ -1465,6 +1467,7 @@ function setMobOffsets(){
   } else root.style.removeProperty('--mobTabTop');
 }
 window.addEventListener('resize',()=>fitCanvas());
+window.addEventListener('orientationchange',()=>setTimeout(fitCanvas,150));
 
 /* ---- mobile: tap the canvas (or the corner button) to view it fullscreen ---- */
 const _EXPAND_SVG='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/></svg>';
@@ -2400,6 +2403,7 @@ $('resetAll').addEventListener('click',()=>{ if(location.hash)history.replaceSta
 const _hs=fromHash();
 if(_hs) applyState(_hs);
 else { applyPaper(); run(); }
+requestAnimationFrame(setMobOffsets);   // re-measure once layout/fonts settle
 </script>
 </body>
 </html>
