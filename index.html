@@ -201,12 +201,26 @@
     font-size:11px;border-radius:5px;padding:6px 4px;cursor:pointer;transition:.12s}
   .lockchips button:hover{border-color:var(--accent-dim);color:var(--text)}
   .lockchips button.on{background:var(--accent-dim);border-color:var(--accent);color:#eafcff}
+  .expandbtn{display:none}
   @media(max-width:820px){
     body{flex-direction:column;overflow:auto;height:auto;-webkit-overflow-scrolling:touch}
+    /* tap-to-fullscreen button on the canvas */
+    .expandbtn{display:flex;position:absolute;top:10px;right:10px;z-index:40;
+      width:40px;height:40px;align-items:center;justify-content:center;
+      background:rgba(18,22,25,.66);color:var(--text);border:1px solid var(--line2);
+      border-radius:9px;cursor:pointer;padding:0;
+      -webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px)}
+    .expandbtn:active{background:var(--accent-dim);color:#eafcff;border-color:var(--accent)}
+    /* immersive: canvas fills the screen, controls hidden */
+    body.immersive{overflow:hidden}
+    body.immersive main{position:fixed;inset:0;height:100vh;z-index:100;box-shadow:none}
+    body.immersive .stage{height:100vh}
+    body.immersive .readout{display:none}
+    body.immersive aside{display:none}
     /* canvas + readout pinned to the top so the art stays visible while you scroll controls */
     main{order:-1;position:sticky;top:0;z-index:30;height:auto;
       background:var(--mat);box-shadow:0 8px 18px -8px rgba(0,0,0,.75)}
-    .stage{height:40vh;min-height:210px}
+    .stage{height:50vh;min-height:240px;padding:0}
     .hint{display:none}
     /* readout: 2x2 stats, full-width export row */
     .readout{flex-wrap:wrap}
@@ -663,6 +677,7 @@
 <main>
   <div class="stage">
     <canvas id="view"></canvas>
+    <button id="expandBtn" class="expandbtn" aria-label="Toggle fullscreen view"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/></svg></button>
     <div class="busy" id="busy"><span>drawing&hellip;</span></div>
   </div>
   <div class="readout">
@@ -1416,11 +1431,24 @@ function scheduleAuto(){
 /* ---- canvas sizing: fit the whole sheet into the stage ---- */
 function fitCanvas(){
   const stage=view.parentElement;
-  const pad=48;
-  const availW=stage.clientWidth-pad,availH=stage.clientHeight-pad;
+  const mob=window.matchMedia('(max-width:820px)').matches;
   const ar=state.paperW/state.paperH;
-  let w=availW,h=w/ar;
-  if(h>availH){h=availH;w=h*ar;}
+  let w,h;
+  if(mob){
+    const imm=document.body.classList.contains('immersive');
+    const pad=imm?10:16;
+    const availW=(imm?window.innerWidth:stage.clientWidth)-pad;
+    const availH=(imm?window.innerHeight:Math.round(window.innerHeight*0.55))-pad;
+    w=availW; h=w/ar;
+    if(h>availH){ h=availH; w=h*ar; }
+    stage.style.height=imm ? (window.innerHeight+'px') : (h+pad)+'px';  // wrap canvas, or full screen
+  }else{
+    stage.style.height='';                                 // desktop: CSS controls the stage
+    const pad=48;
+    const availW=stage.clientWidth-pad, availH=stage.clientHeight-pad;
+    w=availW; h=w/ar;
+    if(h>availH){ h=availH; w=h*ar; }
+  }
   const dpr=Math.min(window.devicePixelRatio||1,2);
   view.style.width=w+'px';view.style.height=h+'px';
   view.width=Math.round(w*dpr);view.height=Math.round(h*dpr);
@@ -1437,6 +1465,29 @@ function setMobOffsets(){
   } else root.style.removeProperty('--mobTabTop');
 }
 window.addEventListener('resize',()=>fitCanvas());
+
+/* ---- mobile: tap the canvas (or the corner button) to view it fullscreen ---- */
+const _EXPAND_SVG='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/></svg>';
+const _CLOSE_SVG='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>';
+function toggleImmersive(force){
+  if(!window.matchMedia('(max-width:820px)').matches) return;   // mobile only
+  const on = (force!=null)?force:!document.body.classList.contains('immersive');
+  document.body.classList.toggle('immersive',on);
+  $('expandBtn').innerHTML = on?_CLOSE_SVG:_EXPAND_SVG;
+  if(on) window.scrollTo(0,0);
+  fitCanvas();
+}
+$('expandBtn').addEventListener('click',e=>{ e.stopPropagation(); toggleImmersive(); });
+// distinguish a tap (toggle) from a guide-drawing drag (moved) — so drawing still works
+let _tapStart=null;
+view.addEventListener('pointerdown',e=>{ _tapStart={x:e.clientX,y:e.clientY,t:Date.now()}; });
+view.addEventListener('pointerup',e=>{
+  const s=_tapStart; _tapStart=null;
+  if(!s || !window.matchMedia('(max-width:820px)').matches) return;
+  const moved=Math.hypot(e.clientX-s.x, e.clientY-s.y);
+  if(moved<12 && (Date.now()-s.t)<450) toggleImmersive();
+});
+view.addEventListener('pointercancel',()=>{ _tapStart=null; });
 
 /* ---- read all params into a config object ---- */
 function readCfg(){
