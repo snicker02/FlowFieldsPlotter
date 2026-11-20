@@ -670,7 +670,7 @@
   </div>
   <div class="sidefoot">
     <div class="seg">
-      <button id="autoBtn" class="on">Auto-draw: on</button>
+      <button id="autoBtn">Auto-draw: off</button>
       <button id="genBtn" class="on" style="background:var(--accent-dim);border-color:var(--accent);color:#eafcff">Redraw</button>
     </div>
   </div>
@@ -1380,7 +1380,7 @@ function endStroke(){
   if(!drawing)return; drawing=false;
   if(state.cur&&state.cur.length>=2)state.strokes.push(state.cur);
   state.cur=null;
-  if(auto)run(); else compositeGuides();
+  if(auto)run(); else {compositeGuides();markPending(true);}
 }
 view.addEventListener('pointerup',endStroke);
 view.addEventListener('pointercancel',()=>{drawing=false;state.cur=null;compositeGuides();});
@@ -1413,19 +1413,40 @@ $('reseed').addEventListener('click',()=>{
   seedEl.value=Math.floor(Math.random()*99999);run();
 });
 
-// auto-draw toggle
-let auto=true;
-$('autoBtn').addEventListener('click',()=>{
-  auto=!auto;
+// auto-draw toggle. Off by default (confirm mode): changes wait for Redraw or
+// Enter, and Redraw shows a dot while there are changes not drawn yet. The
+// choice is remembered. Living-particles mode always runs live.
+let auto=false;
+try{const v=localStorage.getItem('ffp.autodraw');if(v!==null)auto=v==='1';}catch(_){}
+let pendingDraw=false;
+function syncAuto(){
   $('autoBtn').textContent='Auto-draw: '+(auto?'on':'off');
   $('autoBtn').classList.toggle('on',auto);
+  $('autoBtn').title=auto?'Every change redraws straight away':'Changes wait until you press Redraw (or Enter)';
+}
+function markPending(on){
+  pendingDraw=on;
+  $('genBtn').textContent=on?'Redraw \u25CF':'Redraw';
+  $('genBtn').title=on?'Draw the changes you have made (Enter)':'Redraw';
+}
+syncAuto();
+$('autoBtn').addEventListener('click',()=>{
+  auto=!auto; syncAuto();
+  try{localStorage.setItem('ffp.autodraw',auto?'1':'0');}catch(_){}
+  if(auto&&pendingDraw)run();
 });
 $('genBtn').addEventListener('click',run);
+window.addEventListener('keydown',e=>{
+  if(e.key!=='Enter'||e.repeat||!pendingDraw||e.ctrlKey||e.metaKey||e.altKey)return;
+  const t=e.target;
+  if(t&&(t.tagName==='BUTTON'||t.tagName==='TEXTAREA'||(t.tagName==='INPUT'&&(t.type==='text'||t.type==='number'))))return;
+  e.preventDefault(); run();
+});
 
 let autoTimer=null;
 function scheduleAuto(){
   if(bulkApply)return;
-  if(state.mode!=='particle' && !auto)return;
+  if(state.mode!=='particle' && !auto){markPending(true);return;}
   clearTimeout(autoTimer);
   autoTimer=setTimeout(run,180);
 }
@@ -1560,6 +1581,7 @@ function buildDirectionField(cfg){
 
 /* ---- generate + measure ---- */
 function run(){
+  if(pendingDraw)markPending(false);
   if(state.mode==='particle') return runParticles();
   // field source = image but no image loaded
   if(state.source==='image' && !state.img){
