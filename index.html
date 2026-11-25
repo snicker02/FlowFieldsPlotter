@@ -689,6 +689,7 @@
     <div class="stat"><span class="k" id="kGen">Gen</span><span class="v" id="rGen">&mdash;</span></div>
     <div class="spacer"></div>
     <div class="exports">
+      <button id="shelfBtn" title="Shared image shelf: send this plot to another snicker02 app, or load an image to drive the field">⇄ Shelf</button>
       <button id="pngBtn">PNG</button>
       <button id="svgBtn" class="prime">Export SVG</button>
     </div>
@@ -696,6 +697,7 @@
   <div class="hint" id="hint">SVG exports at true millimetre size &mdash; drop it straight into your plotter's toolchain.</div>
 </main>
 
+<script src="https://snicker02.github.io/shared/bridge.js"></script>
 <script>
 /* =====================================================================
    Simplex noise (2D), compact Gustavson-style, seedable
@@ -1306,7 +1308,9 @@ $('densInvBtn').addEventListener('click',()=>{
 
 /* ---- image upload ---- */
 $('imgFile').addEventListener('change',e=>{
-  const f=e.target.files&&e.target.files[0]; if(!f)return;
+  const f=e.target.files&&e.target.files[0]; if(f)loadImageFile(f);
+});
+function loadImageFile(f){
   const img=new Image();
   img.onload=()=>{
     const maxd=320, sc=Math.min(1,maxd/Math.max(img.width,img.height));
@@ -1323,7 +1327,7 @@ $('imgFile').addEventListener('change',e=>{
   };
   img.onerror=()=>{$('hint').textContent='Could not load that image file.';};
   img.src=URL.createObjectURL(f);
-});
+}
 $('imgClear').addEventListener('click',()=>{
   state.img=null; $('imgName').textContent='none'; $('imgFile').value='';
   run();
@@ -1948,11 +1952,21 @@ $('pngBtn').addEventListener('click',()=>{
     return;
   }
   if(!state.lines.length)return;
-  const scale=effScale(Number(state.dpi)); // px per mm, clamped
+  const c=renderLinesCanvas(effScale(Number(state.dpi))); // px per mm, clamped
+  if(!c){$('hint').textContent='PNG failed \u2014 that resolution is too large for this browser. Try a lower DPI.';return;}
+  c.toBlob(b=>{
+    if(!b){$('hint').textContent='PNG failed \u2014 resolution too large. Try a lower DPI.';return;}
+    const url=URL.createObjectURL(b);const a=document.createElement('a');
+    a.href=url;a.download='flowfield-'+seedEl.value+'-'+state.dpi+'dpi.png';a.click();
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
+  },'image/png');
+});
+/* draw the current lines onto a fresh canvas at `scale` px per mm (null if the browser refuses the size) */
+function renderLinesCanvas(scale){
   const c=document.createElement('canvas');
   c.width=Math.round(state.paperW*scale);c.height=Math.round(state.paperH*scale);
   const x=c.getContext('2d');
-  if(!x){$('hint').textContent='PNG failed \u2014 that resolution is too large for this browser. Try a lower DPI.';return;}
+  if(!x)return null;
   x.fillStyle=paperColEl.value;x.fillRect(0,0,c.width,c.height);
   x.lineJoin='round';x.lineCap='round';
   x.globalAlpha=state.opacity;
@@ -1972,13 +1986,26 @@ $('pngBtn').addEventListener('click',()=>{
       x.stroke();
     }
   }
-  c.toBlob(b=>{
-    if(!b){$('hint').textContent='PNG failed \u2014 resolution too large. Try a lower DPI.';return;}
-    const url=URL.createObjectURL(b);const a=document.createElement('a');
-    a.href=url;a.download='flowfield-'+seedEl.value+'-'+state.dpi+'dpi.png';a.click();
-    setTimeout(()=>URL.revokeObjectURL(url),1000);
-  },'image/png');
-});
+  return c;
+}
+
+/* ---- shared image shelf (snicker02.github.io/shared/bridge.js) ---- */
+if(window.SnickerShelf){
+  window.SnickerShelf.mount({
+    app:'FlowFieldsPlotter',
+    button:$('shelfBtn'),
+    onImage:file=>loadImageFile(file),
+    getImage:()=>{
+      if(state.mode==='particle')return new Promise((res,rej)=>view.toBlob(b=>b?res(b):rej(new Error('snapshot failed')),'image/png'));
+      if(!state.lines.length)throw new Error('nothing drawn yet');
+      const scale=Math.min(effScale(Number(state.dpi)),2400/Math.max(state.paperW,state.paperH));
+      const c=renderLinesCanvas(scale);
+      if(!c)throw new Error('render failed');
+      return new Promise((res,rej)=>c.toBlob(b=>b?res(b):rej(new Error('encode failed')),'image/png'));
+    },
+    getMeta:()=>({name:'flowfield-'+seedEl.value+'.png'}),
+  });
+}else $('shelfBtn').hidden=true;
 
 /* ---- sidebar tabs ---- */
 const grpEls=Array.from(document.querySelectorAll('.grp[data-tab]'));
